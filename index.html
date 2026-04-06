@@ -3667,12 +3667,14 @@ async function saveGasto() {
       const tipoId = await driveGetOrCreateFolder(tipoLabels[tipo], mesId);
 
       let fileToUpload = gastoFileToUpload;
-      // Compress if it's an image
+      // Generar nombre único con fecha+timestamp para evitar sobreescrituras en R2
+      const uniqueName = fecha.replace(/-/g,'') + '_' + Date.now();
       if (gastoFileToUpload.type.startsWith('image/')) {
         const compressed = await compressImage(gastoFileToUpload, 1200, 0.82);
-        const ext = '.jpg';
-        const baseName = gastoFileToUpload.name.replace(/\.[^.]+$/, '');
-        fileToUpload = new File([compressed], baseName + ext, { type: 'image/jpeg' });
+        fileToUpload = new File([compressed], uniqueName + '.jpg', { type: 'image/jpeg' });
+      } else {
+        const ext = gastoFileToUpload.name.split('.').pop() || 'pdf';
+        fileToUpload = new File([gastoFileToUpload], uniqueName + '.' + ext, { type: gastoFileToUpload.type });
       }
 
       const uploaded = await driveUploadFile(fileToUpload, tipoId);

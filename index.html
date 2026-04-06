@@ -3519,7 +3519,7 @@ async function saveGasto() {
       await requireDriveAuth();
       const tipoLabels = { ticket:'TICKETS', personal:'FACTURAS_PERSONAL', empresa:'FACTURAS_EMPRESA' };
       const mes = fecha.substring(0, 7);
-      const mesLabel = mes + '_' + getMonthLabel(mes);
+      const mesLabel = mes;
       const rootId = await driveGetOrCreateFolder('DIETAS');
       const trabId = await driveGetOrCreateFolder(trabajador.toUpperCase(), rootId);
       const mesId  = await driveGetOrCreateFolder(mesLabel, trabId);

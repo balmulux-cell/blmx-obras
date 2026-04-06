@@ -852,6 +852,11 @@ tr:hover td{background:var(--s1)!important}
           </div>
           <button class="btn btn-primary" onclick="btnGuardar(this, changeWorkerPassword)">Cambiar contraseña operarios</button>
         </div>
+        <div class="form-card">
+          <div class="stitle" style="margin-bottom:10px"><div class="stitle-bar"></div>Borrado masivo de registros</div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Elimina jornadas y/o dietas por mes, año o trabajador.</p>
+          <button class="btn btn-danger" onclick="abrirBorradoMasivo()">🗑️ Borrar registros</button>
+        </div>
         <div class="form-card" style="text-align:center">
           <button class="btn btn-danger" onclick="logoutAdmin()">Cerrar sesión de oficina</button>
         </div>
@@ -1260,9 +1265,70 @@ tr:hover td{background:var(--s1)!important}
     <div style="background:rgba(255,77,77,.08);border:1px solid rgba(255,77,77,.2);border-radius:6px;padding:10px 12px;margin-bottom:14px">
       <p style="font-size:12px;color:var(--red)">Esta acción no se puede deshacer.</p>
     </div>
+    <div id="confirmPassSection" style="display:none;margin-bottom:12px">
+      <div class="fg">
+        <label>Contraseña de oficina para confirmar</label>
+        <input type="password" id="confirmPass" placeholder="Introduce la contraseña" style="font-size:14px;padding:8px 10px"
+          onkeydown="if(event.key==='Enter'){document.getElementById('modalConfirmBtn').click()}">
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modalConfirmBorrar')">Cancelar</button>
       <button class="btn btn-danger" id="modalConfirmBtn" onclick="">Sí, eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal borrado masivo -->
+<div class="overlay" id="modalBorradoMasivo">
+  <div class="modal">
+    <h3 style="color:var(--red)">🗑️ Borrado masivo de registros</h3>
+    <div class="frow" style="margin-top:12px">
+      <div class="fg">
+        <label>Tipo de borrado</label>
+        <select id="borradoTipo" onchange="updateBorradoFiltros()">
+          <option value="mes">Por mes</option>
+          <option value="anio">Por año</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label>Trabajador</label>
+        <select id="borradoTrabajador">
+          <option value="todos">Todos</option>
+        </select>
+      </div>
+    </div>
+    <div class="frow">
+      <div class="fg" id="borradoMesFg">
+        <label>Mes</label>
+        <input type="month" id="borradoMes">
+      </div>
+      <div class="fg" id="borradoAnioFg" style="display:none">
+        <label>Año</label>
+        <select id="borradoAnio"></select>
+      </div>
+    </div>
+    <div class="frow">
+      <div class="fg">
+        <label>Qué borrar</label>
+        <select id="borradoQue">
+          <option value="jornadas">Jornadas</option>
+          <option value="gastos">Dietas y facturas</option>
+          <option value="todo">Todo (jornadas + dietas)</option>
+        </select>
+      </div>
+    </div>
+    <div style="background:rgba(255,77,77,.08);border:1px solid rgba(255,77,77,.2);border-radius:6px;padding:10px 12px;margin:12px 0">
+      <p style="font-size:12px;color:var(--red)">⚠️ Esta acción eliminará los registros seleccionados permanentemente.</p>
+    </div>
+    <div class="fg" style="margin-bottom:12px">
+      <label>Contraseña de oficina para confirmar</label>
+      <input type="password" id="borradoPass" placeholder="Introduce la contraseña" style="font-size:14px;padding:8px 10px"
+        onkeydown="if(event.key==='Enter'){ejecutarBorradoMasivo()}">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalBorradoMasivo')">Cancelar</button>
+      <button class="btn btn-danger" onclick="btnGuardar(this, ejecutarBorradoMasivo)">🗑️ Borrar registros</button>
     </div>
   </div>
 </div>
@@ -1390,7 +1456,7 @@ async function saveDB() {
 // ADMIN AUTH
 // ════════════════════════════════════════════
 function getAdminPass() {
-  return localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_PASS;
+  return DB.settings?.adminPass || localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_PASS;
 }
 function getWorkerPass() {
   return DB.settings?.workerPass || localStorage.getItem(WORKER_PASS_KEY) || DEFAULT_WORKER_PASS;
@@ -1444,10 +1510,17 @@ function changePassword() {
   const p2 = document.getElementById('newPass2').value;
   if (!p1 || p1.length < 4) return alert('La contraseña debe tener al menos 4 caracteres');
   if (p1 !== p2) return alert('Las contraseñas no coinciden');
+  if (!DB.settings) DB.settings = {};
+  DB.settings.adminPass = p1;
   localStorage.setItem(ADMIN_PASS_KEY, p1);
+  saveDB();
+  // Cerrar todas las sesiones de admin para forzar re-login con nueva contraseña
+  Object.keys(localStorage).filter(k => k === ADMIN_SESSION_KEY).forEach(k => localStorage.removeItem(k));
+  isAdmin = false;
   document.getElementById('newPass').value = '';
   document.getElementById('newPass2').value = '';
-  alert('✅ Contraseña cambiada correctamente');
+  alert('✅ Contraseña de oficina cambiada. Deberás iniciar sesión de nuevo.');
+  applyAdminUI();
 }
 function applyAdminUI() {
   // Nueva/eliminar obra
@@ -1560,14 +1633,42 @@ function createProject() {
   document.getElementById('newProjName').value = '';
   renderProjectSelect(); renderAll();
 }
-function deleteProject() {
+async function deleteProject() {
   const p = activeProject();
   if (!p) return;
-  if (!confirm(`¿Eliminar "${p.name}"? No se puede deshacer.`)) return;
+  // Usar modal con contraseña
+  showConfirmModal(
+    `¿Eliminar la obra "${p.name}"? Se borrarán también todas las fotos y planos almacenados.`,
+    async () => { await _doDeleteProject(p); },
+    true
+  );
+}
+async function _doDeleteProject(p) {
+
+  const obraSafe = sanitizeR2Name(p.name);
+
+  // Borrar fotos de R2
+  try {
+    const fotosPath = 'FOTOS/' + obraSafe;
+    const fotos = await driveListFiles(fotosPath);
+    for (const f of fotos) { try { await driveDeleteFile(f.id); } catch(e) {} }
+  } catch(e) {}
+
+  // Borrar planos de R2
+  try {
+    const planosPath = 'PLANOS/' + obraSafe;
+    const planos = await driveListFiles(planosPath);
+    for (const f of planos) { try { await driveDeleteFile(f.id); } catch(e) {} }
+  } catch(e) {}
+
+  // Borrar fotos de Firebase
+  if (DB.fotos) delete DB.fotos[DB.activeId];
+
   delete DB.projects[DB.activeId];
   DB.activeId = Object.keys(DB.projects)[0] || null;
   saveDB(); renderProjectSelect(); renderAll();
 }
+
 
 // ════════════════════════════════════════════
 // OBRA PANELS (new system)
@@ -3766,7 +3867,7 @@ async function renderPlanos() {
 
 function confirmarBorrarPlano(fileId, fileName) {
   showConfirmModal(
-    `¿Eliminar el plano "${fileName}" de Google Drive?`,
+    `¿Eliminar el plano "${fileName}"?`,
     async () => {
       try {
         await requireDriveAuth();
@@ -3953,14 +4054,104 @@ function confirmarBorrarFoto(fotoId, driveId, fileName) {
 // ════════════════════════════════════════════
 // GENERIC CONFIRM MODAL
 // ════════════════════════════════════════════
-function showConfirmModal(msg, onConfirm) {
+
+// ════════════════════════════════════════════
+// BORRADO MASIVO
+// ════════════════════════════════════════════
+function abrirBorradoMasivo() {
+  const today = new Date().toISOString().substring(0, 7);
+  document.getElementById('borradoMes').value = today;
+  document.getElementById('borradoPass').value = '';
+
+  // Poblar trabajadores
+  const sel = document.getElementById('borradoTrabajador');
+  sel.innerHTML = '<option value="todos">Todos los trabajadores</option>' +
+    (DB.trabajadores||[]).map(t => `<option value="${t.nombre}">${t.nombre}</option>`).join('');
+
+  // Poblar años
+  const anioSel = document.getElementById('borradoAnio');
+  const years = new Set();
+  (DB.jornadas||[]).forEach(j => { if(j.fecha) years.add(j.fecha.substring(0,4)); });
+  (DB.gastos||[]).forEach(g => { if(g.fecha) years.add(g.fecha.substring(0,4)); });
+  if (years.size === 0) years.add(new Date().getFullYear().toString());
+  anioSel.innerHTML = [...years].sort().reverse().map(y => `<option value="${y}">${y}</option>`).join('');
+
+  updateBorradoFiltros();
+  openModal('modalBorradoMasivo');
+}
+
+function updateBorradoFiltros() {
+  const tipo = document.getElementById('borradoTipo').value;
+  document.getElementById('borradoMesFg').style.display = tipo === 'mes' ? '' : 'none';
+  document.getElementById('borradoAnioFg').style.display = tipo === 'anio' ? '' : 'none';
+}
+
+async function ejecutarBorradoMasivo() {
+  const pass = document.getElementById('borradoPass').value;
+  if (!pass) { alert('Introduce la contraseña de oficina'); return; }
+  if (pass !== getAdminPass()) { alert('Contraseña incorrecta'); document.getElementById('borradoPass').value = ''; return; }
+
+  const tipo = document.getElementById('borradoTipo').value;
+  const trab = document.getElementById('borradoTrabajador').value;
+  const que = document.getElementById('borradoQue').value;
+  const mes = document.getElementById('borradoMes').value;
+  const anio = document.getElementById('borradoAnio').value;
+  const periodo = tipo === 'mes' ? mes : anio;
+
+  const filtroFecha = (fecha) => tipo === 'mes' ? (fecha||'').startsWith(mes) : (fecha||'').startsWith(anio);
+  const filtroTrab = (nombre) => trab === 'todos' || nombre === trab;
+
+  let countJ = 0, countG = 0;
+
+  if (que === 'jornadas' || que === 'todo') {
+    const antes = (DB.jornadas||[]).length;
+    DB.jornadas = (DB.jornadas||[]).filter(j => !(filtroFecha(j.fecha) && filtroTrab(j.trabNombre)));
+    countJ = antes - DB.jornadas.length;
+  }
+
+  if (que === 'gastos' || que === 'todo') {
+    const gastosABorrar = (DB.gastos||[]).filter(g => filtroFecha(g.fecha) && filtroTrab(g.trabajador));
+    // Borrar archivos de R2
+    for (const g of gastosABorrar) {
+      if (g.driveFileId) { try { await driveDeleteFile(g.driveFileId); } catch(e) {} }
+    }
+    const antes = (DB.gastos||[]).length;
+    DB.gastos = (DB.gastos||[]).filter(g => !(filtroFecha(g.fecha) && filtroTrab(g.trabajador)));
+    countG = antes - DB.gastos.length;
+  }
+
+  await saveDB();
+  closeModal('modalBorradoMasivo');
+
+  const trabLabel = trab === 'todos' ? 'todos los trabajadores' : trab;
+  const msgs = [];
+  if (countJ > 0) msgs.push(`${countJ} jornada(s)`);
+  if (countG > 0) msgs.push(`${countG} gasto(s)`);
+  if (msgs.length === 0) {
+    alert(`No se encontraron registros para ${trabLabel} en ${periodo}.`);
+  } else {
+    alert(`✅ Eliminados: ${msgs.join(' y ')} de ${trabLabel} en ${periodo}.`);
+  }
+  renderAll();
+}
+
+function showConfirmModal(msg, onConfirm, requirePass = false) {
   document.getElementById('modalConfirmMsg').textContent = msg;
+  const passSection = document.getElementById('confirmPassSection');
+  const passInput = document.getElementById('confirmPass');
+  passSection.style.display = requirePass ? 'block' : 'none';
+  passInput.value = '';
   const btn = document.getElementById('modalConfirmBtn');
   btn.onclick = async () => {
+    if (requirePass) {
+      if (!passInput.value) { alert('Introduce la contraseña de oficina'); return; }
+      if (passInput.value !== getAdminPass()) { alert('Contraseña incorrecta'); passInput.value = ''; passInput.focus(); return; }
+    }
     closeModal('modalConfirmBorrar');
     await onConfirm();
   };
   openModal('modalConfirmBorrar');
+  if (requirePass) setTimeout(() => passInput.focus(), 200);
 }
 
 // ════════════════════════════════════════════

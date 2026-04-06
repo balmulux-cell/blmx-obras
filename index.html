@@ -842,7 +842,15 @@ tr:hover td{background:var(--s1)!important}
             <div class="fg"><label>Nueva contraseña</label><input type="password" id="newPass" placeholder="Mín. 4 caracteres"></div>
             <div class="fg"><label>Confirmar</label><input type="password" id="newPass2" placeholder="Repetir"></div>
           </div>
-          <button class="btn btn-primary" onclick="btnGuardar(this, changePassword)">Cambiar contraseña</button>
+          <button class="btn btn-primary" onclick="btnGuardar(this, changePassword)">Cambiar contraseña oficina</button>
+        </div>
+        <div class="form-card">
+          <div class="stitle" style="margin-bottom:10px"><div class="stitle-bar"></div>Contraseña de operarios</div>
+          <div class="frow">
+            <div class="fg"><label>Nueva contraseña operarios</label><input type="password" id="newWorkerPass" placeholder="Mín. 4 caracteres"></div>
+            <div class="fg"><label>Confirmar</label><input type="password" id="newWorkerPass2" placeholder="Repetir"></div>
+          </div>
+          <button class="btn btn-primary" onclick="btnGuardar(this, changeWorkerPassword)">Cambiar contraseña operarios</button>
         </div>
         <div class="form-card" style="text-align:center">
           <button class="btn btn-danger" onclick="logoutAdmin()">Cerrar sesión de oficina</button>
@@ -1282,6 +1290,9 @@ const KEY = 'obra_db_local';
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
+const WORKER_PASS_KEY = 'obra_worker_pass';
+const WORKER_SESSION_KEY = 'obra_worker_session';
+const DEFAULT_WORKER_PASS = 'blmx2026';
 
 let DB = { projects: {}, trabajadores: [], jornadas: [], settings: {} };
 let syncEnabled = false;
@@ -1381,6 +1392,9 @@ async function saveDB() {
 function getAdminPass() {
   return localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_PASS;
 }
+function getWorkerPass() {
+  return DB.settings?.workerPass || localStorage.getItem(WORKER_PASS_KEY) || DEFAULT_WORKER_PASS;
+}
 function checkAdminSession() {
   isAdmin = localStorage.getItem(ADMIN_SESSION_KEY) === 'true';
   applyAdminUI();
@@ -1409,6 +1423,21 @@ function logoutAdmin() {
   localStorage.removeItem(ADMIN_SESSION_KEY);
   applyAdminUI();
   goHome();
+}
+function changeWorkerPassword() {
+  const p1 = document.getElementById('newWorkerPass').value;
+  const p2 = document.getElementById('newWorkerPass2').value;
+  if (!p1 || p1.length < 4) return alert('La contraseña debe tener al menos 4 caracteres');
+  if (p1 !== p2) return alert('Las contraseñas no coinciden');
+  // Guardar en DB.settings para que se sincronice entre dispositivos
+  if (!DB.settings) DB.settings = {};
+  DB.settings.workerPass = p1;
+  saveDB();
+  // Limpiar todas las sesiones de operarios para forzar re-login
+  Object.keys(localStorage).filter(k => k.startsWith(WORKER_SESSION_KEY)).forEach(k => localStorage.removeItem(k));
+  document.getElementById('newWorkerPass').value = '';
+  document.getElementById('newWorkerPass2').value = '';
+  alert('✅ Contraseña de operarios cambiada. Todos los operarios deberán introducirla de nuevo.');
 }
 function changePassword() {
   const p1 = document.getElementById('newPass').value;
@@ -2715,8 +2744,11 @@ document.addEventListener('change', function(e) {
     const trabId = e.target.value;
     const trab = (DB.trabajadores||[]).find(t => t.id === trabId);
     const needsPass = trab && (trab.rol === 'jefe' || trab.rol === 'oficina');
-    document.getElementById('welcomePassSection').style.display = needsPass ? 'block' : 'none';
-    if (needsPass) setTimeout(() => document.getElementById('welcomePass').focus(), 100);
+    const needsWorkerPass = trab && trab.rol === 'operario' && !localStorage.getItem(WORKER_SESSION_KEY + '_' + trab.id);
+    const showPass = needsPass || needsWorkerPass;
+    document.getElementById('welcomePassSection').style.display = showPass ? 'block' : 'none';
+    document.getElementById('welcomePass').placeholder = needsPass ? 'Contraseña de oficina/jefe' : 'Contraseña de operarios';
+    if (showPass) setTimeout(() => document.getElementById('welcomePass').focus(), 100);
   }
 });
 
@@ -2729,12 +2761,20 @@ function confirmWelcome() {
   if (!trab) { alert('Trabajador no encontrado. Puede que los datos aún no hayan cargado.'); return; }
 
   const needsPass = trab.rol === 'jefe' || trab.rol === 'oficina';
+  const needsWorkerPass = trab.rol === 'operario' && !localStorage.getItem(WORKER_SESSION_KEY + '_' + trab.id);
   if (needsPass) {
     const pass = document.getElementById('welcomePass').value;
     if (!pass) { alert('Introduce la contraseña'); return; }
     if (pass !== getAdminPass()) { alert('Contraseña incorrecta'); return; }
     isAdmin = true;
     localStorage.setItem(ADMIN_SESSION_KEY, 'true');
+  } else if (needsWorkerPass) {
+    const pass = document.getElementById('welcomePass').value;
+    if (!pass) { alert('Introduce la contraseña de operarios'); return; }
+    if (pass !== getWorkerPass()) { alert('Contraseña incorrecta'); return; }
+    localStorage.setItem(WORKER_SESSION_KEY + '_' + trab.id, 'true');
+    isAdmin = false;
+    localStorage.removeItem(ADMIN_SESSION_KEY);
   } else {
     isAdmin = false;
     localStorage.removeItem(ADMIN_SESSION_KEY);

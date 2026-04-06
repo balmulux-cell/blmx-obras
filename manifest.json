@@ -1,0 +1,34 @@
+{
+  "name": "BLMX OBRAS",
+  "short_name": "BLMX",
+  "description": "Gestión de obras BALMULUX",
+  "start_url": "/blmx-obras/",
+  "scope": "/blmx-obras/",
+  "display": "standalone",
+  "background_color": "#111418",
+  "theme_color": "#f0a500",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/blmx-obras/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
+}

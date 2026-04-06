@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>OBRA — Gestión de Proyectos</title>
+<title>BLMX OBRAS</title>
+<meta name="description" content="Gestión de obras BALMULUX">
+<meta name="theme-color" content="#f0a500">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="BLMX OBRAS">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -3340,7 +3348,16 @@ function abrirMaps() {
 function abrirWaze() {
   const dir = document.getElementById('fichaDireccion')?.value?.trim();
   if (!dir) return alert('Escribe primero una dirección');
-  window.open('https://waze.com/ul?q=' + encodeURIComponent(dir), '_blank');
+  const enc = encodeURIComponent(dir);
+  // Intentar abrir la app nativa de Waze, con fallback a la web
+  const appUrl = 'waze://?q=' + enc + '&navigate=yes';
+  const webUrl = 'https://waze.com/ul?q=' + enc + '&navigate=yes';
+  // En móvil abre la app; si no está instalada redirige a la web tras 1.5s
+  const start = Date.now();
+  window.location = appUrl;
+  setTimeout(() => {
+    if (Date.now() - start < 2000) window.open(webUrl, '_blank');
+  }, 1500);
 }
 
 function renderFichaPanel() {
@@ -4221,6 +4238,13 @@ async function init(){
   }
 }
 init();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>

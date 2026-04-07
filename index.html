@@ -628,6 +628,18 @@ tr:hover td{background:var(--s1)!important}
         <div class="mosaic-label">Fotos</div>
         <div class="mosaic-sub" id="obraNavFotosSub">Fotos de avance</div>
       </button>
+
+      <button class="mosaic-btn" onclick="showObraPanel('acopio')">
+        <span class="mosaic-icon">📦</span>
+        <div class="mosaic-label">Acopio de<br>Materiales</div>
+        <div class="mosaic-sub">Listado de materiales</div>
+      </button>
+
+      <button class="mosaic-btn" onclick="showObraPanel('avance')">
+        <span class="mosaic-icon">📊</span>
+        <div class="mosaic-label">Avance de<br>Ejecución</div>
+        <div class="mosaic-sub">Seguimiento trabajos</div>
+      </button>
       <button class="mosaic-btn admin-only-btn" id="obraNavIa" onclick="showObraPanel('ia')" style="display:none">
         <span class="mosaic-icon">🤖</span>
         <div class="mosaic-label">Análisis IA</div>
@@ -1004,6 +1016,54 @@ tr:hover td{background:var(--s1)!important}
           <div class="upload-zone-sub">JPG, PNG · Varias a la vez · Se optimizan automáticamente</div>
         </div>
         <div id="fotosGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px"></div>
+      </div>
+
+      <!-- ACOPIO DE MATERIALES -->
+      <div class="panel-inner" id="inner-acopio" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="acopioFiltro" placeholder="🔍 Filtrar..." style="flex:1;min-width:120px" oninput="renderAcopio()">
+          <button class="btn btn-ghost btn-sm" id="btnAcopioImport" onclick="document.getElementById('acopioImportInput').click()" style="display:none">📥 Importar Excel</button>
+          <input type="file" id="acopioImportInput" accept=".xlsx,.xls" style="display:none" onchange="importarAcopioExcel(this)">
+          <button class="btn btn-ghost btn-sm" id="btnAcopioExport" onclick="exportarAcopioExcel()" style="display:none">📊 Exportar Excel</button>
+          <button class="btn btn-primary btn-sm" onclick="nuevaLineaAcopio()">+ Añadir línea</button>
+        </div>
+        <div id="acopioList"></div>
+      </div>
+
+      <!-- AVANCE DE EJECUCIÓN -->
+      <div class="panel-inner" id="inner-avance" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="avanceFiltro" placeholder="🔍 Filtrar..." style="flex:1;min-width:120px" oninput="renderAvance()">
+          <select id="avanceFiltroEstado" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:12px" onchange="renderAvance()">
+            <option value="">Todos los estados</option>
+            <option value="no_ejecuta">No se ejecuta</option>
+            <option value="sin_iniciar">Sin iniciar</option>
+            <option value="p20">20%</option>
+            <option value="p50">50%</option>
+            <option value="p80">80%</option>
+            <option value="finalizado">Finalizado</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" id="btnAvanceImport" onclick="document.getElementById('avanceImportInput').click()" style="display:none">📥 Importar Excel</button>
+          <input type="file" id="avanceImportInput" accept=".xlsx,.xls" style="display:none" onchange="importarAvanceExcel(this)">
+          <button class="btn btn-ghost btn-sm" id="btnAvanceExport" onclick="exportarAvanceExcel()" style="display:none">📊 Exportar Excel</button>
+          <button class="btn btn-primary btn-sm" onclick="nuevaLineaAvance()">+ Añadir línea</button>
+        </div>
+        <!-- Acción masiva -->
+        <div id="avanceAccionMasiva" style="display:none;background:var(--s2);border:1px solid var(--border2);border-radius:6px;padding:8px 12px;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span id="avanceSelCount" style="font-size:12px;color:var(--accent);font-weight:700"></span>
+          <span style="font-size:12px;color:var(--text3)">→ Cambiar estado a:</span>
+          <select id="avanceEstadoMasivo" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:12px">
+            <option value="no_ejecuta">⚫ No se ejecuta</option>
+            <option value="sin_iniciar">🔴 Sin iniciar</option>
+            <option value="p20">🟠 20%</option>
+            <option value="p50">🟡 50%</option>
+            <option value="p80">🟢 80%</option>
+            <option value="finalizado">🟢 Finalizado</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="aplicarEstadoMasivo()">Aplicar</button>
+          <button class="btn btn-ghost btn-sm" onclick="deseleccionarTodo()">Cancelar</button>
+        </div>
+        <div id="avanceList"></div>
       </div>
 
     </div><!-- end obraPanelContent -->
@@ -1389,7 +1449,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.0.12'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.0.13'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -1750,7 +1810,8 @@ const PANEL_TITLES = {
   mediciones:'📐 Mediciones', historial:'🗂 Historial', tareas:'✅ Tareas',
   consultas:'💬 Consultas', pedidos:'📦 Pedidos', ppto:'📄 Presupuesto',
   ficha:'📋 Ficha de Obra', planos:'🗺️ Planos', fotos:'📷 Fotos de Obra',
-  ia:'🤖 Análisis IA', importar:'📥 Importar Excel', admin:'⚙️ Administración'
+  ia:'🤖 Análisis IA', importar:'📥 Importar Excel', admin:'⚙️ Administración',
+  acopio:'📦 Acopio de Materiales', avance:'📊 Avance de Ejecución'
 };
 
 function showObraPanel(name) {
@@ -1771,6 +1832,8 @@ function showObraPanel(name) {
   if (name === 'ficha') renderFichaPanel();
   if (name === 'planos') renderPlanos();
   if (name === 'fotos') renderFotos();
+  if (name === 'acopio') renderAcopio();
+  if (name === 'avance') renderAvance();
   if (name === 'mediciones' && currentUser) prefillNameFields(currentUser.nombre);
 }
 
@@ -4379,6 +4442,234 @@ async function init(){
   }
 }
 init();
+
+// ════════════════════════════════════════════
+// ACOPIO DE MATERIALES
+// ════════════════════════════════════════════
+
+const AVANCE_ESTADOS = {
+  no_ejecuta: { label: 'No se ejecuta', color: '#666666', dot: '⚫' },
+  sin_iniciar: { label: 'Sin iniciar',   color: '#ff4d4d', dot: '🔴' },
+  p20:         { label: '20%',           color: '#ff8c00', dot: '🟠' },
+  p50:         { label: '50%',           color: '#f5c842', dot: '🟡' },
+  p80:         { label: '80%',           color: '#7fc94e', dot: '🟢' },
+  finalizado:  { label: 'Finalizado',    color: '#2ecc8a', dot: '🟢' }
+};
+
+function getAcopioKey() { const p = activeProject(); return p ? 'acopio_' + DB.activeId : null; }
+function getAvanceKey()  { const p = activeProject(); return p ? 'avance_'  + DB.activeId : null; }
+function getAcopioData() { const k = getAcopioKey(); return k && DB[k] ? DB[k] : []; }
+function getAvanceData()  { const k = getAvanceKey();  return k && DB[k] ? DB[k] : []; }
+function setAcopioData(d) { const k = getAcopioKey(); if (!k) return; DB[k] = d; saveDB(); }
+function setAvanceData(d)  { const k = getAvanceKey();  if (!k) return; DB[k] = d; saveDB(); }
+
+function getPedidosObra() {
+  const p = activeProject(); if (!p) return [];
+  return (DB.pedidosSeg || []).filter(ped => ped.obra === p.name);
+}
+
+function renderAcopio() {
+  const list = document.getElementById('acopioList'); if (!list) return;
+  const filtro = (document.getElementById('acopioFiltro')?.value || '').toLowerCase();
+  ['btnAcopioImport','btnAcopioExport'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isOficina ? '' : 'none';
+  });
+  let data = getAcopioData();
+  if (filtro) data = data.filter(r => [r.codigo,r.material,r.unidad,r.nPedido,r.comentarios,r.estado].join(' ').toLowerCase().includes(filtro));
+  if (data.length === 0) { list.innerHTML = '<div class="empty">Sin materiales. Añade una línea o importa desde Excel.</div>'; return; }
+  const pedidosObra = getPedidosObra();
+  const pedOpts = `<option value="">—</option><option value="nave">Nave</option>${pedidosObra.map(p=>`<option value="${p.nPedido}">${p.nPedido}</option>`).join('')}`;
+  list.innerHTML = `<div class="tbl-wrap" style="overflow-x:auto"><table style="min-width:900px">
+    <thead><tr>
+      <th style="width:90px">CÓDIGO</th><th>MATERIAL</th>
+      <th style="width:80px;text-align:center">CANT. INIC.</th>
+      <th style="width:70px;text-align:center">UNIDAD</th>
+      <th style="width:90px;text-align:center">CANT. ENV.</th>
+      <th style="width:120px">Nº PEDIDO</th>
+      <th style="width:120px">ESTADO</th>
+      <th>COMENTARIOS</th>
+      <th style="width:36px"></th>
+    </tr></thead>
+    <tbody>${data.map((r,i) => {
+      const pedido = pedidosObra.find(p => p.nPedido === r.nPedido);
+      const estadoColors = { entregado:'#2ecc8a', parcialmente:'#f5c842', no_entregado:'#ff4d4d', sin_tramitar:'#5b9cf6' };
+      const estadoLabels = { entregado:'Entregado', parcialmente:'Parcialmente', no_entregado:'No entregado', sin_tramitar:'Sin tramitar' };
+      const estadoAuto = r.nPedido && r.nPedido !== 'nave' && pedido ? (estadoLabels[pedido.estado] || pedido.estado) : '';
+      const estadoColor = pedido ? (estadoColors[pedido.estado] || '#a0aab8') : '#a0aab8';
+      const selNPed = pedOpts.replace(`value="${r.nPedido||''}"`, `value="${r.nPedido||''}" selected`);
+      const estadoCell = r.nPedido === 'nave'
+        ? `<input type="text" value="${r.estado||''}" style="width:100%;font-size:11px" onchange="updateAcopio(${i},'estado',this.value)" placeholder="Estado...">`
+        : `<span style="color:${estadoColor};font-weight:700;font-size:11px">${estadoAuto}</span>`;
+      return `<tr>
+        <td><input type="text" value="${r.codigo||''}" style="width:100%" onchange="updateAcopio(${i},'codigo',this.value)"></td>
+        <td><input type="text" value="${r.material||''}" style="width:100%" onchange="updateAcopio(${i},'material',this.value)"></td>
+        <td><input type="number" value="${r.cantidadInicial||''}" style="width:100%;text-align:center" min="0" onchange="updateAcopio(${i},'cantidadInicial',this.value)"></td>
+        <td><input type="text" value="${r.unidad||''}" style="width:100%;text-align:center" onchange="updateAcopio(${i},'unidad',this.value)"></td>
+        <td><input type="number" value="${r.cantidadEnviada||''}" style="width:100%;text-align:center" min="0" onchange="updateAcopio(${i},'cantidadEnviada',this.value)"></td>
+        <td><select style="width:100%;font-size:12px" onchange="updateAcopio(${i},'nPedido',this.value)">${selNPed}</select></td>
+        <td>${estadoCell}</td>
+        <td><input type="text" value="${r.comentarios||''}" style="width:100%" onchange="updateAcopio(${i},'comentarios',this.value)"></td>
+        <td><button class="btn btn-danger btn-xs" onclick="borrarLineaAcopio(${i})">✕</button></td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+function updateAcopio(idx, field, value) {
+  const data = getAcopioData(); if (!data[idx]) return;
+  data[idx][field] = value; setAcopioData(data);
+}
+function nuevaLineaAcopio() {
+  const data = getAcopioData();
+  data.push({ id: Date.now(), codigo:'', material:'', cantidadInicial:'', unidad:'', cantidadEnviada:'', nPedido:'', estado:'', comentarios:'' });
+  setAcopioData(data); renderAcopio();
+}
+function borrarLineaAcopio(idx) {
+  const data = getAcopioData(); data.splice(idx,1); setAcopioData(data); renderAcopio();
+}
+function importarAcopioExcel(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'binary' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    const data = rows.map(r => ({ id: Date.now()+Math.random(),
+      codigo: String(r['CODIGO']||r['Código']||r['codigo']||''),
+      material: String(r['MATERIAL']||r['Material']||r['material']||''),
+      cantidadInicial: r['CANTIDAD INICIAL']||r['Cantidad Inicial']||'',
+      unidad: String(r['UNIDAD']||r['Unidad']||r['unidad']||''),
+      cantidadEnviada:'', nPedido:'', estado:'', comentarios:'' }));
+    setAcopioData(data); renderAcopio(); input.value='';
+    alert('✅ ' + data.length + ' materiales importados');
+  };
+  reader.readAsBinaryString(file);
+}
+function exportarAcopioExcel() {
+  const p = activeProject(); if (!p) return;
+  const data = getAcopioData(); if (!data.length) { alert('Sin datos'); return; }
+  const pedidosObra = getPedidosObra();
+  const estadoLabels = { entregado:'Entregado', parcialmente:'Parcialmente entregado', no_entregado:'No entregado', sin_tramitar:'Sin tramitar' };
+  const rows = data.map(r => {
+    const pedido = pedidosObra.find(ped => ped.nPedido === r.nPedido);
+    const estado = r.nPedido === 'nave' ? (r.estado||'') : (pedido ? (estadoLabels[pedido.estado]||pedido.estado) : '');
+    return { 'CÓDIGO':r.codigo, 'MATERIAL':r.material, 'CANTIDAD INICIAL':r.cantidadInicial,
+      'UNIDAD':r.unidad, 'CANTIDAD ENVIADA':r.cantidadEnviada, 'Nº PEDIDO':r.nPedido,
+      'ESTADO':estado, 'COMENTARIOS':r.comentarios };
+  });
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Acopio');
+  XLSX.writeFile(wb, 'Acopio_' + p.name + '_' + new Date().toISOString().split('T')[0] + '.xlsx');
+}
+
+// ════════════════════════════════════════════
+// AVANCE DE EJECUCIÓN
+// ════════════════════════════════════════════
+
+function renderAvance() {
+  const list = document.getElementById('avanceList'); if (!list) return;
+  const filtro = (document.getElementById('avanceFiltro')?.value||'').toLowerCase();
+  const filtroEst = document.getElementById('avanceFiltroEstado')?.value||'';
+  ['btnAvanceImport','btnAvanceExport'].forEach(id => { const el=document.getElementById(id); if(el) el.style.display=isOficina?'':'none'; });
+  let data = getAvanceData();
+  if (filtro) data = data.filter(r => [String(r.orden||''),r.descripcion||'',r.comentarios||''].join(' ').toLowerCase().includes(filtro));
+  if (filtroEst) data = data.filter(r => (r.avance||'sin_iniciar') === filtroEst);
+  const prio = { sin_iniciar:0, p20:1, p50:2, p80:3, finalizado:4, no_ejecuta:5 };
+  data = [...data].sort((a,b) => {
+    const pa = prio[a.avance||'sin_iniciar']??0, pb = prio[b.avance||'sin_iniciar']??0;
+    if (pa!==pb) return pa-pb;
+    return (Number(a.orden)||0)-(Number(b.orden)||0);
+  });
+  const seleccionados = data.filter(r=>r._sel);
+  const masiva = document.getElementById('avanceAccionMasiva');
+  const selCount = document.getElementById('avanceSelCount');
+  if (masiva) masiva.style.display = seleccionados.length>0 ? 'flex' : 'none';
+  if (selCount) selCount.textContent = seleccionados.length + ' seleccionada(s)';
+  if (data.length===0) { list.innerHTML='<div class="empty">Sin líneas. Añade una o importa desde Excel.</div>'; return; }
+  list.innerHTML = `<div class="tbl-wrap" style="overflow-x:auto"><table style="min-width:700px">
+    <thead><tr>
+      <th style="width:32px"><input type="checkbox" id="avanceSelAll" onchange="toggleSelAll(this.checked)" title="Seleccionar todos"></th>
+      <th style="width:60px;text-align:center">ORDEN</th>
+      <th>DESCRIPCIÓN</th>
+      <th style="width:170px">AVANCE</th>
+      <th>COMENTARIOS</th>
+      <th style="width:36px"></th>
+    </tr></thead>
+    <tbody>${data.map(r => {
+      const est = AVANCE_ESTADOS[r.avance||'sin_iniciar']||AVANCE_ESTADOS.sin_iniciar;
+      const noEj = r.avance==='no_ejecuta';
+      return `<tr style="${noEj?'opacity:0.4':''}">
+        <td style="text-align:center"><input type="checkbox" ${r._sel?'checked':''} onchange="toggleSelAvance('${r.id}',this.checked)"></td>
+        <td><input type="number" value="${r.orden||''}" style="width:100%;text-align:center" onchange="updateAvance('${r.id}','orden',this.value)"></td>
+        <td><input type="text" value="${r.descripcion||''}" style="width:100%" onchange="updateAvance('${r.id}','descripcion',this.value)"></td>
+        <td><select style="width:100%;color:${est.color};font-weight:700;font-size:12px" onchange="updateAvance('${r.id}','avance',this.value)">
+          ${Object.entries(AVANCE_ESTADOS).map(([v,e])=>`<option value="${v}" ${r.avance===v?'selected':''}>${e.dot} ${e.label}</option>`).join('')}
+        </select></td>
+        <td><input type="text" value="${r.comentarios||''}" style="width:100%" onchange="updateAvance('${r.id}','comentarios',this.value)"></td>
+        <td><button class="btn btn-danger btn-xs" onclick="borrarLineaAvance('${r.id}')">✕</button></td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+}
+
+function updateAvance(id, field, value) {
+  const data = getAvanceData();
+  const r = data.find(x=>String(x.id)===String(id)); if(!r) return;
+  r[field]=value; setAvanceData(data);
+  if(field==='avance') renderAvance();
+}
+function nuevaLineaAvance() {
+  const data = getAvanceData();
+  const max = data.reduce((m,r)=>Math.max(m,Number(r.orden)||0),0);
+  data.push({id:Date.now(),orden:max+1,descripcion:'',avance:'sin_iniciar',comentarios:'',_sel:false});
+  setAvanceData(data); renderAvance();
+}
+function borrarLineaAvance(id) {
+  setAvanceData(getAvanceData().filter(x=>String(x.id)!==String(id))); renderAvance();
+}
+function toggleSelAvance(id,checked) {
+  const data=getAvanceData(); const r=data.find(x=>String(x.id)===String(id)); if(!r) return;
+  r._sel=checked; setAvanceData(data); renderAvance();
+}
+function toggleSelAll(checked) {
+  const data=getAvanceData(); data.forEach(r=>r._sel=checked); setAvanceData(data); renderAvance();
+}
+function deseleccionarTodo() {
+  const data=getAvanceData(); data.forEach(r=>r._sel=false); setAvanceData(data); renderAvance();
+}
+function aplicarEstadoMasivo() {
+  const nuevoEstado=document.getElementById('avanceEstadoMasivo')?.value; if(!nuevoEstado) return;
+  const data=getAvanceData();
+  data.filter(r=>r._sel).forEach(r=>{r.avance=nuevoEstado;r._sel=false;});
+  setAvanceData(data); renderAvance();
+}
+function importarAvanceExcel(input) {
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:'binary'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+    const data=rows.map(r=>({id:Date.now()+Math.random(),
+      orden:r['ORDEN']||r['Orden']||r['orden']||'',
+      descripcion:String(r['DESCRIPCION']||r['Descripción']||r['descripcion']||''),
+      avance:'sin_iniciar',comentarios:'',_sel:false}));
+    setAvanceData(data); renderAvance(); input.value='';
+    alert('✅ '+data.length+' líneas importadas');
+  };
+  reader.readAsBinaryString(file);
+}
+function exportarAvanceExcel() {
+  const p=activeProject(); if(!p) return;
+  const data=getAvanceData(); if(!data.length){alert('Sin datos');return;}
+  const rows=data.map(r=>({'ORDEN':r.orden,'DESCRIPCIÓN':r.descripcion,
+    'AVANCE':AVANCE_ESTADOS[r.avance||'sin_iniciar']?.label||r.avance,'COMENTARIOS':r.comentarios}));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Avance');
+  XLSX.writeFile(wb,'Avance_'+p.name+'_'+new Date().toISOString().split('T')[0]+'.xlsx');
+}
+
 
 // ════════════════════════════════════════════
 // SEGUIMIENTO PEDIDOS (ventana nueva)

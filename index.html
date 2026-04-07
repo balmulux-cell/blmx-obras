@@ -420,6 +420,12 @@ tr:hover td{background:var(--s1)!important}
 
   </div>
   <div style="text-align:center;padding:8px;font-family:'Inter',sans-serif;font-size:10px;color:var(--text3)" id="syncStatusHome">⚫ Conectando...</div>
+  <div style="text-align:center;padding:4px 8px 10px;font-family:'Inter',sans-serif;font-size:10px;color:var(--text3);display:flex;align-items:center;justify-content:center;gap:6px">
+    <span>BLMX OBRAS</span>
+    <span style="color:var(--border2)">·</span>
+    <span id="versionLabel" style="color:var(--text3)">v<span id="versionNum"></span></span>
+    <span id="versionCheck" style="display:none;cursor:pointer;color:var(--accent);font-size:10px" onclick="checkVersion()" title="Comprobar actualización">🔄</span>
+  </div>
   <!-- Drive: conexión automática via Worker, no requiere login del usuario -->
 </div>
 
@@ -1369,6 +1375,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
+const APP_VERSION = '1.0.7'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2924,6 +2931,9 @@ function confirmWelcome() {
 
 function applyUserSession() {
   if (!currentUser) return;
+  // Recalcular isOficina desde el rol del usuario actual
+  isOficina = currentUser.rol === 'oficina';
+  localStorage.setItem('obra_oficina_session', isOficina ? 'true' : 'false');
   // Update home pill
   const avatars = { operario:'👷', jefe:'🏗️', oficina:'🏢' };
   const el = document.getElementById('homeUserAvatar');
@@ -4233,6 +4243,49 @@ function deleteJornada(id) {
 // ════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════
+function initVersion() {
+  const vn = document.getElementById('versionNum');
+  const vc = document.getElementById('versionCheck');
+  if (vn) vn.textContent = APP_VERSION;
+  if (vc) vc.style.display = 'inline';
+}
+
+async function checkVersion() {
+  const vc = document.getElementById('versionCheck');
+  const vl = document.getElementById('versionLabel');
+  if (vc) vc.textContent = '⏳';
+  try {
+    // Forzar recarga del SW para comprobar si hay versión nueva
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for (const reg of regs) await reg.update();
+    }
+    // Comprobar si el index.html del servidor es diferente al cacheado
+    const r = await fetch(location.href + '?v=' + Date.now(), { cache: 'no-store' });
+    const text = await r.text();
+    const match = text.match(/APP_VERSION = '([^']+)'/);
+    const serverVersion = match ? match[1] : null;
+    if (serverVersion && serverVersion !== APP_VERSION) {
+      if (vl) vl.innerHTML = `v${APP_VERSION} <span style="color:var(--warn)">→ v${serverVersion} disponible</span>`;
+      if (confirm(`Hay una versión nueva disponible (v${serverVersion}). ¿Actualizar ahora?`)) {
+        // Limpiar caché del SW y recargar
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+        location.reload(true);
+      }
+    } else {
+      if (vl) vl.innerHTML = `<span style="color:var(--green)">✓ v${APP_VERSION} actualizada</span>`;
+      setTimeout(() => { if (vl) vl.innerHTML = `v<span id="versionNum">${APP_VERSION}</span>`; }, 3000);
+    }
+  } catch(e) {
+    if (vl) vl.innerHTML = `v${APP_VERSION}`;
+  } finally {
+    if (vc) vc.textContent = '🔄';
+  }
+}
+
 async function init(){
   const today=new Date().toISOString().split('T')[0];
   const setVal = (id, val) => { const el=document.getElementById(id); if(el) el.value=val; };
@@ -4243,6 +4296,7 @@ async function init(){
 
   await loadDB();
   initEmailJS();
+  initVersion();
   // Init Google Drive via Worker (no OAuth necesario)
   initGoogleDrive();
   // Ensure collections exist

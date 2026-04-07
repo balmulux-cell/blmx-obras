@@ -1389,7 +1389,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.0.10'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.0.11'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -4448,14 +4448,11 @@ function _buildVentanaPedidos() {
     th:hover{color:#f0a500}
     td{padding:8px 10px;border-bottom:1px solid #1a2030;vertical-align:middle}
     /* Colores de estado por fila */
-    tr.est-sin_tramitar{background:rgba(91,156,246,.15)!important}
-    tr.est-sin_tramitar td{color:#b8d8f5!important;background:rgba(91,156,246,.15)!important}
-    tr.est-no_entregado{background:rgba(255,77,77,.18)!important}
-    tr.est-no_entregado td{color:#ffbbbb!important;background:rgba(255,77,77,.18)!important}
-    tr.est-parcialmente{background:rgba(245,200,66,.15)!important}
-    tr.est-parcialmente td{color:#f7e08a!important;background:rgba(245,200,66,.15)!important}
-    tr.est-entregado{background:rgba(46,204,138,.13)!important}
-    tr.est-entregado td{color:#90edcc!important;background:rgba(46,204,138,.13)!important}
+    .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;flex-shrink:0;vertical-align:middle}
+    .dot-azul{background:#5b9cf6}
+    .dot-rojo{background:#ff4d4d}
+    .dot-amarillo{background:#f5c842}
+    .dot-verde{background:#2ecc8a}
     tr:last-child td{border-bottom:none}
     .fecha-vencida{color:#ff4d4d!important;font-weight:700}
     .inc-btn{padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;border:none;font-weight:700;font-family:'Inter',sans-serif;white-space:nowrap}
@@ -4631,7 +4628,12 @@ function renderTablaPedidos(data) {
       <td>${p.fechaPedido||''}</td>
       <td class="${vencida?'fecha-vencida':''}">${p.fechaEntrega||''}${vencida?' ⚠️':''}</td>
       <td>${p.lugarEntrega||''}</td>
-      <td style="font-weight:700;font-size:11px;text-transform:uppercase">${estadoLabels[p.estado]||p.estado}</td>
+      <td style="font-weight:700;font-size:11px;white-space:nowrap">${{
+        sin_tramitar: '<span class="dot dot-azul"></span>Sin tramitar',
+        no_entregado: '<span class="dot dot-rojo"></span>No entregado',
+        parcialmente:  '<span class="dot dot-amarillo"></span>Parcial',
+        entregado:     '<span class="dot dot-verde"></span>Entregado'
+      }[p.estado] || p.estado}</td>
       <td>${incLabel}</td>
       <td style="display:flex;gap:4px;align-items:center">
         <button class="inc-btn" style="background:rgba(240,165,0,.1);color:#f0a500;border:1px solid rgba(240,165,0,.2)" onclick="editarPedido('${p.id}')">✏️</button>

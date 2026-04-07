@@ -1107,11 +1107,18 @@ tr:hover td{background:var(--s1)!important}
     </div>
 
     <!-- Filtro mes y exportar -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap">
       <input type="month" id="dietasMes" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:13px;flex:1"
         onchange="renderDietas()">
-      <button class="btn btn-green btn-sm" id="btnExportarDietas" onclick="exportarDietasExcel()" style="display:none">📊 Exportar Excel</button>
-      <button class="btn btn-ghost btn-sm" id="btnDescargarDietas" onclick="descargarZipDietas()" style="display:none">📦 Descargar archivos</button>
+      <button class="btn btn-green btn-sm" id="btnExportarDietas" onclick="exportarDietasExcel()" style="display:none">📊 Excel</button>
+      <button class="btn btn-ghost btn-sm" id="btnDescargarDietas" onclick="descargarZipDietas()" style="display:none">📦 ZIP</button>
+    </div>
+    <!-- Filtro trabajador (solo admin) -->
+    <div id="filtroTrabajadorRow" style="display:none;margin-bottom:8px">
+      <select id="dietasTrabajador" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:13px;width:100%"
+        onchange="renderDietas()">
+        <option value="todos">👥 Todos los trabajadores</option>
+      </select>
     </div>
 
     <!-- Filtros tipo -->
@@ -1122,13 +1129,14 @@ tr:hover td{background:var(--s1)!important}
       <button class="tfiltro" onclick="setFiltroDieta('empresa',this)">🟣 Empresa</button>
     </div>
 
+    <!-- Botón añadir FIJO arriba -->
+    <button class="btn btn-primary" style="width:100%;padding:12px;font-size:14px;margin-bottom:12px;position:sticky;top:0;z-index:10" onclick="openModalGasto()">
+      + Añadir gasto
+    </button>
+
     <!-- Lista gastos -->
     <div id="dietasList"></div>
 
-    <!-- Botón añadir -->
-    <button class="btn btn-primary" style="width:100%;padding:14px;font-size:14px;margin-top:8px" onclick="openModalGasto()">
-      + Añadir gasto
-    </button>
   </div>
 </div>
 
@@ -1373,6 +1381,7 @@ let syncEnabled = false;
 let isSaving = false;
 let saveTimeout = null;
 let isAdmin = false;
+let isOficina = false; // true solo para rol 'oficina' — ve gastos de todos
 
 // ════════════════════════════════════════════
 // SYNC
@@ -1471,6 +1480,7 @@ function getWorkerPass() {
 }
 function checkAdminSession() {
   isAdmin = localStorage.getItem(ADMIN_SESSION_KEY) === 'true';
+  isOficina = localStorage.getItem('obra_oficina_session') === 'true';
   applyAdminUI();
 }
 function checkAdmin() {
@@ -1483,6 +1493,8 @@ function doAdminLogin() {
   if (pass === getAdminPass()) {
     isAdmin = true;
     localStorage.setItem(ADMIN_SESSION_KEY, 'true');
+    isOficina = trab.rol === 'oficina';
+    localStorage.setItem('obra_oficina_session', isOficina ? 'true' : 'false');
     closeModal('modalAdminLogin');
     document.getElementById('adminPass').value = '';
     applyAdminUI();
@@ -1494,7 +1506,9 @@ function doAdminLogin() {
 }
 function logoutAdmin() {
   isAdmin = false;
+  isOficina = false;
   localStorage.removeItem(ADMIN_SESSION_KEY);
+  localStorage.removeItem('obra_oficina_session');
   applyAdminUI();
   goHome();
 }
@@ -1556,12 +1570,14 @@ function applyAdminUI() {
   if(expSec) expSec.style.display = isAdmin ? 'block' : 'none';
   // Dietas export solo admin
   const btnExpDietas = document.getElementById('btnExportarDietas');
-  if(btnExpDietas) btnExpDietas.style.display = isAdmin ? '' : 'none';
+  if(btnExpDietas) btnExpDietas.style.display = isOficina ? '' : 'none';
   const btnDlDietas = document.getElementById('btnDescargarDietas');
-  if(btnDlDietas) btnDlDietas.style.display = isAdmin ? '' : 'none';
+  if(btnDlDietas) btnDlDietas.style.display = isOficina ? '' : 'none';
+  const filtroTrabRow = document.getElementById('filtroTrabajadorRow');
+  if(filtroTrabRow) filtroTrabRow.style.display = isOficina ? 'block' : 'none';
   // Admin home button
   const adminBtn = document.getElementById('homeAdminBtn');
-  if(adminBtn) adminBtn.style.display = isAdmin ? 'flex' : 'none';
+  if(adminBtn) adminBtn.style.display = isOficina ? 'flex' : 'none';
 }
 
 // ════════════════════════════════════════════
@@ -2919,7 +2935,7 @@ function applyUserSession() {
 
   // Admin button visibility
   const adminBtn = document.getElementById('homeAdminBtn');
-  if(adminBtn) adminBtn.style.display = isAdmin ? 'block' : 'none';
+  if(adminBtn) adminBtn.style.display = isOficina ? 'block' : 'none';
 
   // Botones solo para jefe/oficina
   const esJefeOOficina = currentUser.rol === 'jefe' || currentUser.rol === 'oficina';
@@ -3520,7 +3536,15 @@ async function descargarZipCarpeta(tipo) {
 async function descargarZipDietas() {
   const mes = document.getElementById('dietasMes').value;
   if (!mes) return alert('Selecciona un mes');
-  const gastos = (DB.gastos || []).filter(g => g.fecha && g.fecha.startsWith(mes));
+  const trabSel2 = document.getElementById('dietasTrabajador');
+  const filtroTrab2 = isOficina ? (trabSel2?.value || 'todos') : null;
+  const gastos = (DB.gastos || []).filter(g => {
+    const byMes = g.fecha && g.fecha.startsWith(mes);
+    const byUser = isOficina
+      ? (filtroTrab2 === 'todos' || g.trabajador === filtroTrab2)
+      : g.trabajador === currentUser?.nombre;
+    return byMes && byUser;
+  });
   if (gastos.length === 0) return alert('No hay gastos en este período');
 
   // Recopilar todas las claves R2 únicas de los gastos del mes
@@ -3726,8 +3750,22 @@ function renderDietas() {
   if (!mesInput.value) mesInput.value = today.toISOString().substring(0, 7);
   const mes = mesInput.value;
 
+  // Mostrar/ocultar filtro trabajador y poblar opciones
+  const filtroRow = document.getElementById('filtroTrabajadorRow');
+  const trabSel = document.getElementById('dietasTrabajador');
+  if (filtroRow) filtroRow.style.display = isOficina ? 'block' : 'none';
+  if (isOficina && trabSel) {
+    const current = trabSel.value;
+    trabSel.innerHTML = '<option value="todos">👥 Todos los trabajadores</option>' +
+      (DB.trabajadores||[]).map(t => `<option value="${t.nombre}"${t.nombre===current?' selected':''}>${t.nombre}</option>`).join('');
+  }
+
+  const filtroTrab = isOficina ? (trabSel?.value || 'todos') : null;
+
   const gastos = (DB.gastos || []).filter(g => {
-    const byUser = isAdmin ? true : g.trabajador === currentUser?.nombre;
+    const byUser = isOficina
+      ? (filtroTrab === 'todos' || g.trabajador === filtroTrab)
+      : g.trabajador === currentUser?.nombre;
     const byMes = g.fecha && g.fecha.startsWith(mes);
     return byUser && byMes;
   });
@@ -3791,9 +3829,13 @@ function confirmarBorrarGasto(id) {
 function exportarDietasExcel() {
   const mes = document.getElementById('dietasMes').value;
   if (!mes) return alert('Selecciona un mes');
+  const trabSel = document.getElementById('dietasTrabajador');
+  const filtroTrab = isOficina ? (trabSel?.value || 'todos') : null;
   const gastos = (DB.gastos||[]).filter(g => {
     const byMes = g.fecha && g.fecha.startsWith(mes);
-    const byUser = isAdmin ? true : g.trabajador === currentUser?.nombre;
+    const byUser = isOficina
+      ? (filtroTrab === 'todos' || g.trabajador === filtroTrab)
+      : g.trabajador === currentUser?.nombre;
     return byMes && byUser;
   });
   if (gastos.length === 0) return alert('No hay gastos en este período');

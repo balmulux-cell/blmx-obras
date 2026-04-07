@@ -1449,7 +1449,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.0.13'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.1.0'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -1497,6 +1497,14 @@ async function loadDB() {
     if (snap6.val()) DB.pedidosSeg = Object.values(snap6.val());
     const snap7 = await DB_REF.child('incidencias').once('value');
     if (snap7.val()) DB.incidencias = Object.values(snap7.val());
+    // Cargar acopio y avance de todas las obras
+    const snapExtra = await DB_REF.once('value');
+    const allData = snapExtra.val() || {};
+    Object.keys(allData).forEach(k => {
+      if (k.startsWith('acopio_') || k.startsWith('avance_')) {
+        DB[k] = Array.isArray(allData[k]) ? allData[k] : Object.values(allData[k]);
+      }
+    });
 
     syncEnabled = true; setSyncStatus('ok');
 
@@ -1566,6 +1574,11 @@ async function saveDB() {
         const incObj = {};
         (DB.incidencias||[]).forEach(i => { incObj[i.id] = i; });
         await DB_REF.child('incidencias').set(incObj);
+        // Guardar acopio y avance de todas las obras
+        const extraKeys = Object.keys(DB).filter(k => k.startsWith('acopio_') || k.startsWith('avance_'));
+        for (const k of extraKeys) {
+          await DB_REF.child(k).set(DB[k] || []);
+        }
         setSyncStatus('ok');
       } catch(e) { setSyncStatus('error'); }
       finally { setTimeout(()=>{ isSaving=false; },500); resolve(); }

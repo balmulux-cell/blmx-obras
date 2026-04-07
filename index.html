@@ -1389,7 +1389,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.0.9'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.0.10'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -4399,23 +4399,22 @@ function _initVentanaPedidos() {
   _fbPedidos = firebase.database().ref('obra_db/pedidosSeg');
   _fbIncidencias = firebase.database().ref('obra_db/incidencias');
 
-  _fbPedidos.on('value', snap => {
-    const val = snap.val();
-    _pedidosData = val ? Object.values(val) : [];
-    _buildVentanaPedidos();
-    filtrarPedidos();
-  });
-  _fbIncidencias.on('value', snap => {
-    const val = snap.val();
-    _incidenciasData = val ? Object.values(val) : [];
-    filtrarPedidos();
-  });
-
-  // Leer obras desde Firebase también
+  // Cargar obras primero, luego construir UI, luego escuchar pedidos
   firebase.database().ref('obra_db/projects').once('value', snap => {
     const val = snap.val() || {};
     _obras = Object.values(val).map(p => p.name);
-    _buildVentanaPedidos();
+    _buildVentanaPedidos(); // construir UI una sola vez
+
+    _fbPedidos.on('value', snap2 => {
+      const val2 = snap2.val();
+      _pedidosData = val2 ? Object.values(val2) : [];
+      filtrarPedidos();
+    });
+    _fbIncidencias.on('value', snap3 => {
+      const val3 = snap3.val();
+      _incidenciasData = val3 ? Object.values(val3) : [];
+      filtrarPedidos();
+    });
   });
 }
 
@@ -4449,14 +4448,14 @@ function _buildVentanaPedidos() {
     th:hover{color:#f0a500}
     td{padding:8px 10px;border-bottom:1px solid #1a2030;vertical-align:middle}
     /* Colores de estado por fila */
-    tr.est-sin_tramitar{background:rgba(91,156,246,.08)}
-    tr.est-sin_tramitar td{color:#a0c8ef}
-    tr.est-no_entregado{background:rgba(255,77,77,.1)}
-    tr.est-no_entregado td{color:#ffaaaa}
-    tr.est-parcialmente{background:rgba(245,200,66,.08)}
-    tr.est-parcialmente td{color:#f5e07a}
-    tr.est-entregado{background:rgba(46,204,138,.07)}
-    tr.est-entregado td{color:#7eedc4}
+    tr.est-sin_tramitar{background:rgba(91,156,246,.15)!important}
+    tr.est-sin_tramitar td{color:#b8d8f5!important;background:rgba(91,156,246,.15)!important}
+    tr.est-no_entregado{background:rgba(255,77,77,.18)!important}
+    tr.est-no_entregado td{color:#ffbbbb!important;background:rgba(255,77,77,.18)!important}
+    tr.est-parcialmente{background:rgba(245,200,66,.15)!important}
+    tr.est-parcialmente td{color:#f7e08a!important;background:rgba(245,200,66,.15)!important}
+    tr.est-entregado{background:rgba(46,204,138,.13)!important}
+    tr.est-entregado td{color:#90edcc!important;background:rgba(46,204,138,.13)!important}
     tr:last-child td{border-bottom:none}
     .fecha-vencida{color:#ff4d4d!important;font-weight:700}
     .inc-btn{padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;border:none;font-weight:700;font-family:'Inter',sans-serif;white-space:nowrap}

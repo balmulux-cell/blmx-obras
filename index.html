@@ -406,6 +406,20 @@ tr:hover td{background:var(--s1)!important}
         <div class="mosaic-label">Legaliza-<br>ciones</div>
       </button>
 
+      <button class="mosaic-btn" id="homeBtnSeguimientoPedidos" onclick="abrirSeguimientoPedidos()" style="display:none;position:relative">
+        <span class="mosaic-badge" id="homePedidosPendBadge" style="display:none;background:var(--red)">0</span>
+        <span class="mosaic-icon">🛒</span>
+        <div class="mosaic-label">Seguimiento<br>Pedidos</div>
+        <div class="mosaic-sub">Gestión de pedidos</div>
+      </button>
+
+      <button class="mosaic-btn" id="homeBtnSeguimientoIncidencias" onclick="goScreen('screenSeguimientoIncidencias')" style="display:none;position:relative">
+        <span class="mosaic-badge" id="homeIncidenciasBadge" style="display:none;background:var(--red)">0</span>
+        <span class="mosaic-icon">⚠️</span>
+        <div class="mosaic-label">Seguimiento<br>Incidencias</div>
+        <div class="mosaic-sub">En curso · Finalizadas</div>
+      </button>
+
       <button class="mosaic-btn" id="homeAdminBtn" onclick="goScreen('screenObras');showObraPanel('admin')" style="display:none">
         <span class="mosaic-icon">⚙️</span>
         <div class="mosaic-label">Adminis-<br>tración</div>
@@ -1375,7 +1389,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.0.7'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.0.8'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -1582,6 +1596,10 @@ function applyAdminUI() {
   if(btnDlDietas) btnDlDietas.style.display = isOficina ? '' : 'none';
   const filtroTrabRow = document.getElementById('filtroTrabajadorRow');
   if(filtroTrabRow) filtroTrabRow.style.display = isOficina ? 'block' : 'none';
+  const btnSegPed = document.getElementById('homeBtnSeguimientoPedidos');
+  if(btnSegPed) btnSegPed.style.display = isOficina ? 'flex' : 'none';
+  const btnSegInc = document.getElementById('homeBtnSeguimientoIncidencias');
+  if(btnSegInc) btnSegInc.style.display = isOficina ? 'flex' : 'none';
   // Admin home button
   const adminBtn = document.getElementById('homeAdminBtn');
   if(adminBtn) adminBtn.style.display = isOficina ? 'flex' : 'none';
@@ -1602,6 +1620,7 @@ function goScreen(id) {
   if (id === 'screenPedidosGlobal') renderGlobalPedidos();
   if (id === 'screenCuadros') renderCuadrosTable();
   if (id === 'screenLegalizaciones') renderLegalesTable();
+  if (id === 'screenSeguimientoIncidencias') { renderIncidencias(); }
   if (id === 'screenDietas') {
     const el = document.getElementById('dietasMes');
     if (el && !el.value) el.value = new Date().toISOString().substring(0,7);
@@ -4302,6 +4321,8 @@ async function init(){
   // Ensure collections exist
   if (!DB.gastos) DB.gastos = [];
   if (!DB.fotos)  DB.fotos  = {};
+  if (!DB.pedidosSeg) DB.pedidosSeg = [];
+  if (!DB.incidencias) DB.incidencias = [];
 
   // Restore active project
   const localActiveId=localStorage.getItem('obra_activeId');
@@ -4324,6 +4345,7 @@ async function init(){
     updateHomeBadges();
     if(!DB.projects||Object.keys(DB.projects).length===0){DB.projects={};}
     renderAll();
+    updateBadgesSeguimiento();
     document.querySelectorAll('.screen').forEach(s => {
       s.classList.remove('active');
       s.style.display = 'none';
@@ -4334,6 +4356,604 @@ async function init(){
   }
 }
 init();
+
+// ════════════════════════════════════════════
+// SEGUIMIENTO PEDIDOS (ventana nueva)
+// ════════════════════════════════════════════
+
+function abrirSeguimientoPedidos() {
+  // Serializar DB al localStorage para que la ventana nueva lo lea
+  localStorage.setItem('blmx_pedidos_db', JSON.stringify({
+    pedidos: DB.pedidosSeg || [],
+    incidencias: DB.incidencias || [],
+    projects: DB.projects || {}
+  }));
+  const url = location.href.split('?')[0] + '?modo=pedidos';
+  window.open(url, 'blmx_pedidos', 'width=1200,height=800,menubar=no,toolbar=no,location=no');
+}
+
+// Si estamos en modo pedidos (ventana secundaria)
+if (new URLSearchParams(location.search).get('modo') === 'pedidos') {
+  document.addEventListener('DOMContentLoaded', () => {
+    // Ocultar todo y mostrar solo la pantalla de pedidos
+    document.querySelectorAll('.screen').forEach(s => { s.style.display = 'none'; s.classList.remove('active'); });
+    renderPantallaSegPedidos();
+  });
+}
+
+function renderPantallaSegPedidos() {
+  // Leer datos del localStorage compartido
+  let data = {};
+  try { data = JSON.parse(localStorage.getItem('blmx_pedidos_db') || '{}'); } catch(e) {}
+  const pedidos = data.pedidos || DB.pedidosSeg || [];
+  const proyectos = data.projects || DB.projects || {};
+  const obras = Object.values(proyectos).map(p => p.name);
+
+  // Obtener proveedores únicos
+  const proveedoresUnicos = [...new Set(pedidos.map(p => p.proveedor).filter(Boolean))];
+
+  document.body.innerHTML = `
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#111418;color:#f5f7fa;font-family:'Inter',sans-serif;font-size:13px}
+    .topbar{background:#181d24;border-bottom:1px solid #2e3a4e;padding:0 16px;display:flex;align-items:center;gap:8px;height:50px}
+    .topbar-title{font-weight:800;font-size:15px;color:#f5f7fa;flex:1}
+    .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:6px;font-weight:700;font-size:11px;text-transform:uppercase;cursor:pointer;border:none;transition:all .15s}
+    .btn-primary{background:#f0a500;color:#111}
+    .btn-danger{background:rgba(255,77,77,.1);color:#ff4d4d;border:1px solid rgba(255,77,77,.25)}
+    .btn-ghost{background:transparent;color:#d8dde8;border:1px solid #2e3a4e}
+    .btn-warn{background:rgba(245,200,66,.1);color:#f5c842;border:1px solid rgba(245,200,66,.25)}
+    input,select,textarea{background:#1e2530;border:1px solid #2e3a4e;color:#f5f7fa;border-radius:5px;padding:6px 9px;font-size:12px;font-family:'Inter',sans-serif}
+    input:focus,select:focus,textarea:focus{outline:1px solid #f0a500}
+    table{width:100%;border-collapse:collapse}
+    th{background:#252d3a;font-size:10px;text-transform:uppercase;letter-spacing:.2px;color:#a0aab8;padding:8px 10px;text-align:left;border-bottom:1px solid #2e3a4e;white-space:nowrap;cursor:pointer;user-select:none}
+    th:hover{color:#f0a500}
+    td{padding:7px 9px;border-bottom:1px solid #1e2530;vertical-align:middle}
+    tr.estado-sin_tramitar td{background:rgba(100,180,220,.08)}
+    tr.estado-no_entregado td{background:rgba(255,77,77,.1)}
+    tr.estado-parcialmente td{background:rgba(245,200,66,.08)}
+    tr.estado-entregado td{background:rgba(46,204,138,.07)}
+    tr.estado-sin_tramitar td{color:#a0d8ef}
+    tr.estado-no_entregado td{color:#ff9999}
+    tr.estado-parcialmente td{color:#f5c842}
+    tr.estado-entregado td{color:#2ecc8a}
+    .tbl-wrap{border-radius:7px;border:1px solid #2e3a4e;overflow:hidden;overflow-x:auto}
+    .filtros-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+    .fecha-vencida{color:#ff4d4d!important;font-weight:700}
+    .inc-btn{padding:3px 7px;border-radius:4px;font-size:11px;cursor:pointer;border:none;font-weight:700}
+    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;align-items:center;justify-content:center}
+    .overlay.open{display:flex}
+    .modal{background:#1e2530;border:1px solid #3a4a60;border-radius:10px;padding:20px;max-width:560px;width:96%;max-height:90vh;overflow-y:auto}
+    .modal h3{margin-bottom:14px}
+    .fg{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px;margin-bottom:10px}
+    .fg label{font-size:10px;text-transform:uppercase;letter-spacing:.2px;color:#a0aab8}
+    .frow{display:flex;gap:10px;flex-wrap:wrap}
+    .seg-row{display:flex;gap:8px;margin-bottom:8px;align-items:flex-start}
+    .seg-row input[type=date]{width:140px;flex-shrink:0}
+    .seg-row textarea{flex:1;min-height:52px;resize:vertical}
+  </style>
+  <div class="topbar">
+    <span class="topbar-title">🛒 Seguimiento de Pedidos — BALMULUX</span>
+    <button class="btn btn-primary" onclick="nuevoPedido()">+ Nuevo pedido</button>
+  </div>
+  <div style="padding:14px">
+    <div class="filtros-bar">
+      <input id="pfTexto" placeholder="🔍 Buscar en todos los campos..." style="flex:1;min-width:180px" oninput="filtrarPedidos()">
+      <select id="pfObra" onchange="filtrarPedidos()"><option value="">Todas las obras</option>${obras.map(o=>`<option>${o}</option>`).join('')}</select>
+      <select id="pfEstado" onchange="filtrarPedidos()">
+        <option value="">Todos los estados</option>
+        <option value="sin_tramitar">Sin tramitar</option>
+        <option value="no_entregado">No entregado</option>
+        <option value="parcialmente">Parcialmente entregado</option>
+        <option value="entregado">Entregado</option>
+      </select>
+    </div>
+    <div class="tbl-wrap">
+      <table id="tablaPedidos">
+        <thead><tr>
+          <th onclick="sortPedidos('nPedido')">Nº PEDIDO ↕</th>
+          <th onclick="sortPedidos('proveedor')">PROVEEDOR ↕</th>
+          <th onclick="sortPedidos('obra')">OBRA ↕</th>
+          <th onclick="sortPedidos('descripcion')">DESCRIPCIÓN ↕</th>
+          <th onclick="sortPedidos('fechaPedido')">F.PEDIDO ↕</th>
+          <th onclick="sortPedidos('fechaEntrega')">F.ENTREGA ↕</th>
+          <th onclick="sortPedidos('lugarEntrega')">LUGAR ENTREGA ↕</th>
+          <th onclick="sortPedidos('estado')">ESTADO ↕</th>
+          <th>INC.</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="pedidosBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal pedido -->
+  <div class="overlay" id="modalPed">
+    <div class="modal">
+      <h3 style="color:#f0a500">🛒 Pedido</h3>
+      <input type="hidden" id="pedId">
+      <div class="frow">
+        <div class="fg"><label>Nº Pedido</label><input type="text" id="pedNPedido" placeholder="P-001"></div>
+        <div class="fg"><label>Proveedor</label><input type="text" id="pedProveedor" list="listProveedores" placeholder="Nombre proveedor"><datalist id="listProveedores">${proveedoresUnicos.map(p=>`<option value="${p}">`).join('')}</datalist></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label>Obra</label><select id="pedObra"><option value="">— Selecciona —</option>${obras.map(o=>`<option>${o}</option>`).join('')}</select></div>
+        <div class="fg"><label>Estado</label><select id="pedEstado">
+          <option value="sin_tramitar">Sin tramitar</option>
+          <option value="no_entregado">No entregado</option>
+          <option value="parcialmente">Parcialmente entregado</option>
+          <option value="entregado">Entregado</option>
+        </select></div>
+      </div>
+      <div class="fg"><label>Descripción</label><textarea id="pedDescripcion" rows="2" placeholder="Ej: Mecanismos, cable clima..."></textarea></div>
+      <div class="frow">
+        <div class="fg"><label>Fecha pedido</label><input type="date" id="pedFechaPedido"></div>
+        <div class="fg"><label>Fecha entrega</label><input type="date" id="pedFechaEntrega"></div>
+      </div>
+      <div class="fg"><label>Lugar entrega</label><select id="pedLugarEntrega">
+        <option value="En obra">En obra</option>
+        <option value="En la nave">En la nave</option>
+        <option value="Recoger en delegación">Recoger en delegación</option>
+        <option value="Otro">Otro</option>
+      </select></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn btn-ghost" onclick="cerrarModalPed()">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarPedido()">💾 Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal incidencia (dentro de pedidos) -->
+  <div class="overlay" id="modalIncPed">
+    <div class="modal" style="max-width:600px">
+      <h3 style="color:#f5c842;margin-bottom:14px">⚠️ Incidencia</h3>
+      <input type="hidden" id="ipId">
+      <input type="hidden" id="ipPedidoId">
+      <div class="frow">
+        <div class="fg"><label>Nº Pedido</label><input id="ipNPedido" readonly style="background:#252d3a;color:#a0aab8"></div>
+        <div class="fg"><label>Proveedor</label><input id="ipProveedor" readonly style="background:#252d3a;color:#a0aab8"></div>
+        <div class="fg"><label>Obra</label><input id="ipObra" readonly style="background:#252d3a;color:#a0aab8"></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label>Fecha incidencia</label><input type="date" id="ipFecha"></div>
+        <div class="fg"><label>Nº Factura (opcional)</label><input type="text" id="ipNFactura" placeholder="Opcional"></div>
+      </div>
+      <div class="fg"><label>Descripción de la incidencia</label><textarea id="ipDescripcion" rows="4" placeholder="Describe la incidencia..."></textarea></div>
+      <div style="font-size:10px;font-weight:700;color:#f0a500;text-transform:uppercase;margin:12px 0 8px">Seguimiento</div>
+      <div id="ipSegList"></div>
+      <button class="btn btn-ghost" style="margin-bottom:14px;font-size:11px" onclick="addSegRowPed()">+ Añadir seguimiento</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" onclick="cerrarModalInc()">Cerrar</button>
+        <button class="btn btn-primary" onclick="guardarIncidenciaPed()">💾 Guardar</button>
+        <button class="btn btn-green" id="btnFinPed" onclick="finalizarIncidenciaPed()">✅ Finalizado</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm borrar -->
+  <div class="overlay" id="modalConfPed">
+    <div class="modal" style="max-width:380px">
+      <h3 style="color:#ff4d4d;margin-bottom:12px">⚠️ Confirmar eliminación</h3>
+      <p id="confirmPedMsg" style="color:#d8dde8;font-size:14px;margin-bottom:14px"></p>
+      <p style="font-size:12px;color:#ff4d4d;margin-bottom:14px">Esta acción no se puede deshacer.</p>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" onclick="cerrarConfirmPed()">Cancelar</button>
+        <button class="btn btn-danger" id="btnConfirmPedOk">Sí, eliminar</button>
+      </div>
+    </div>
+  </div>
+  `;
+
+  _pedidosData = pedidos;
+  _pedidosSortKey = 'nPedido';
+  _pedidosSortAsc = true;
+  filtrarPedidos();
+}
+
+// Estado global de pedidos (ventana secundaria)
+let _pedidosData = [];
+let _pedidosSortKey = 'nPedido';
+let _pedidosSortAsc = true;
+
+function _savePedidosDB() {
+  // Guardar en DB principal si estamos en ventana principal
+  if (!new URLSearchParams(location.search).get('modo')) {
+    saveDB();
+    updateBadgesSeguimiento();
+  } else {
+    // Ventana secundaria: guardar en localStorage y notificar ventana principal
+    localStorage.setItem('blmx_pedidos_sync', JSON.stringify({ pedidos: _pedidosData, ts: Date.now() }));
+  }
+}
+
+function filtrarPedidos() {
+  const txt = (document.getElementById('pfTexto')?.value || '').toLowerCase();
+  const obra = document.getElementById('pfObra')?.value || '';
+  const estado = document.getElementById('pfEstado')?.value || '';
+  let data = (_pedidosData || DB.pedidosSeg || []).filter(p => {
+    const matchTxt = !txt || Object.values(p).join(' ').toLowerCase().includes(txt);
+    const matchObra = !obra || p.obra === obra;
+    const matchEstado = !estado || p.estado === estado;
+    return matchTxt && matchObra && matchEstado;
+  });
+  data = data.sort((a, b) => {
+    let va = a[_pedidosSortKey] || '', vb = b[_pedidosSortKey] || '';
+    if (va < vb) return _pedidosSortAsc ? -1 : 1;
+    if (va > vb) return _pedidosSortAsc ? 1 : -1;
+    return 0;
+  });
+  renderTablaPedidos(data);
+}
+
+function sortPedidos(key) {
+  if (_pedidosSortKey === key) _pedidosSortAsc = !_pedidosSortAsc;
+  else { _pedidosSortKey = key; _pedidosSortAsc = true; }
+  filtrarPedidos();
+}
+
+function renderTablaPedidos(data) {
+  const tbody = document.getElementById('pedidosBody');
+  if (!tbody) return;
+  const today = new Date().toISOString().split('T')[0];
+  const incidencias = DB.incidencias || JSON.parse(localStorage.getItem('blmx_pedidos_db') || '{}').incidencias || [];
+  tbody.innerHTML = data.map(p => {
+    const vencida = p.fechaEntrega && p.fechaEntrega < today && p.estado !== 'entregado';
+    const inc = incidencias.find(i => i.pedidoId === p.id);
+    const incLabel = inc
+      ? `<button class="inc-btn" style="background:${inc.estado==='finalizado'?'rgba(46,204,138,.2)':'rgba(245,200,66,.2)'};color:${inc.estado==='finalizado'?'#2ecc8a':'#f5c842'};border:1px solid ${inc.estado==='finalizado'?'rgba(46,204,138,.3)':'rgba(245,200,66,.3)'}" onclick="abrirIncidenciaPed('${p.id}')">${inc.estado==='finalizado'?'✓ Fin':'⚠️ Ver'}</button>`
+      : `<button class="inc-btn" style="background:rgba(255,77,77,.1);color:#ff4d4d;border:1px solid rgba(255,77,77,.2)" onclick="nuevaIncidenciaPed('${p.id}')">+ Inc.</button>`;
+    return `<tr class="estado-${p.estado}">
+      <td style="font-weight:700">${p.nPedido||''}</td>
+      <td>${p.proveedor||''}</td>
+      <td>${p.obra||''}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.descripcion||''}">${p.descripcion||''}</td>
+      <td>${p.fechaPedido||''}</td>
+      <td class="${vencida?'fecha-vencida':''}">${p.fechaEntrega||''}${vencida?' ⚠️':''}</td>
+      <td>${p.lugarEntrega||''}</td>
+      <td style="font-weight:700;text-transform:uppercase;font-size:11px">${{sin_tramitar:'Sin tramitar',no_entregado:'No entregado',parcialmente:'Parcial',entregado:'Entregado'}[p.estado]||p.estado}</td>
+      <td>${incLabel}</td>
+      <td style="display:flex;gap:4px">
+        <button class="inc-btn" style="background:rgba(240,165,0,.1);color:#f0a500;border:1px solid rgba(240,165,0,.2)" onclick="editarPedido('${p.id}')">✏️</button>
+        <button class="inc-btn" style="background:rgba(255,77,77,.1);color:#ff4d4d;border:1px solid rgba(255,77,77,.2)" onclick="pedirConfirmBorrar('${p.id}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="10" style="text-align:center;color:#a0aab8;padding:20px">Sin pedidos</td></tr>';
+}
+
+function nuevoPedido() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('pedId').value = '';
+  document.getElementById('pedNPedido').value = '';
+  document.getElementById('pedProveedor').value = '';
+  document.getElementById('pedObra').value = '';
+  document.getElementById('pedEstado').value = 'sin_tramitar';
+  document.getElementById('pedDescripcion').value = '';
+  document.getElementById('pedFechaPedido').value = today;
+  document.getElementById('pedFechaEntrega').value = '';
+  document.getElementById('pedLugarEntrega').value = 'En obra';
+  document.getElementById('modalPed').classList.add('open');
+}
+
+function editarPedido(id) {
+  const source = _pedidosData.length ? _pedidosData : (DB.pedidosSeg || []);
+  const p = source.find(x => x.id === id); if (!p) return;
+  document.getElementById('pedId').value = p.id;
+  document.getElementById('pedNPedido').value = p.nPedido || '';
+  document.getElementById('pedProveedor').value = p.proveedor || '';
+  document.getElementById('pedObra').value = p.obra || '';
+  document.getElementById('pedEstado').value = p.estado || 'sin_tramitar';
+  document.getElementById('pedDescripcion').value = p.descripcion || '';
+  document.getElementById('pedFechaPedido').value = p.fechaPedido || '';
+  document.getElementById('pedFechaEntrega').value = p.fechaEntrega || '';
+  document.getElementById('pedLugarEntrega').value = p.lugarEntrega || 'En obra';
+  document.getElementById('modalPed').classList.add('open');
+}
+
+function cerrarModalPed() { document.getElementById('modalPed').classList.remove('open'); }
+
+function guardarPedido() {
+  const id = document.getElementById('pedId').value || ('ped_' + Date.now());
+  const p = {
+    id, nPedido: document.getElementById('pedNPedido').value.trim(),
+    proveedor: document.getElementById('pedProveedor').value.trim(),
+    obra: document.getElementById('pedObra').value,
+    estado: document.getElementById('pedEstado').value,
+    descripcion: document.getElementById('pedDescripcion').value.trim(),
+    fechaPedido: document.getElementById('pedFechaPedido').value,
+    fechaEntrega: document.getElementById('pedFechaEntrega').value,
+    lugarEntrega: document.getElementById('pedLugarEntrega').value
+  };
+  if (!p.nPedido) { alert('Introduce el número de pedido'); return; }
+  // Guardar en _pedidosData (ventana secundaria) o DB (ventana principal)
+  if (new URLSearchParams(location.search).get('modo') === 'pedidos') {
+    const idx = _pedidosData.findIndex(x => x.id === id);
+    if (idx >= 0) _pedidosData[idx] = p; else _pedidosData.push(p);
+    _savePedidosDB();
+  } else {
+    if (!DB.pedidosSeg) DB.pedidosSeg = [];
+    const idx = DB.pedidosSeg.findIndex(x => x.id === id);
+    if (idx >= 0) DB.pedidosSeg[idx] = p; else DB.pedidosSeg.push(p);
+    _savePedidosDB();
+  }
+  cerrarModalPed();
+  filtrarPedidos();
+}
+
+function pedirConfirmBorrar(id) {
+  const source = _pedidosData.length ? _pedidosData : (DB.pedidosSeg || []);
+  const p = source.find(x => x.id === id); if (!p) return;
+  document.getElementById('confirmPedMsg').textContent = `¿Eliminar el pedido "${p.nPedido}" de ${p.proveedor}?`;
+  document.getElementById('btnConfirmPedOk').onclick = () => { borrarPedido(id); cerrarConfirmPed(); };
+  document.getElementById('modalConfPed').classList.add('open');
+}
+function cerrarConfirmPed() { document.getElementById('modalConfPed').classList.remove('open'); }
+function borrarPedido(id) {
+  if (new URLSearchParams(location.search).get('modo') === 'pedidos') {
+    _pedidosData = _pedidosData.filter(x => x.id !== id);
+    _savePedidosDB();
+  } else {
+    DB.pedidosSeg = (DB.pedidosSeg || []).filter(x => x.id !== id);
+    DB.incidencias = (DB.incidencias || []).filter(x => x.pedidoId !== id);
+    _savePedidosDB();
+  }
+  filtrarPedidos();
+}
+
+// ── INCIDENCIAS EN VENTANA PEDIDOS ──
+function nuevaIncidenciaPed(pedidoId) {
+  const source = _pedidosData.length ? _pedidosData : (DB.pedidosSeg || []);
+  const p = source.find(x => x.id === pedidoId); if (!p) return;
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('ipId').value = '';
+  document.getElementById('ipPedidoId').value = pedidoId;
+  document.getElementById('ipNPedido').value = p.nPedido || '';
+  document.getElementById('ipProveedor').value = p.proveedor || '';
+  document.getElementById('ipObra').value = p.obra || '';
+  document.getElementById('ipFecha').value = today;
+  document.getElementById('ipNFactura').value = '';
+  document.getElementById('ipDescripcion').value = '';
+  document.getElementById('ipSegList').innerHTML = '';
+  addSegRowPed();
+  document.getElementById('btnFinPed').style.display = '';
+  document.getElementById('modalIncPed').classList.add('open');
+}
+
+function abrirIncidenciaPed(pedidoId) {
+  const incidencias = new URLSearchParams(location.search).get('modo') === 'pedidos'
+    ? (JSON.parse(localStorage.getItem('blmx_pedidos_db') || '{}').incidencias || [])
+    : (DB.incidencias || []);
+  const inc = incidencias.find(i => i.pedidoId === pedidoId); if (!inc) return nuevaIncidenciaPed(pedidoId);
+  const source = _pedidosData.length ? _pedidosData : (DB.pedidosSeg || []);
+  const p = source.find(x => x.id === pedidoId);
+  document.getElementById('ipId').value = inc.id;
+  document.getElementById('ipPedidoId').value = pedidoId;
+  document.getElementById('ipNPedido').value = p?.nPedido || '';
+  document.getElementById('ipProveedor').value = p?.proveedor || '';
+  document.getElementById('ipObra').value = p?.obra || '';
+  document.getElementById('ipFecha').value = inc.fecha || '';
+  document.getElementById('ipNFactura').value = inc.nFactura || '';
+  document.getElementById('ipDescripcion').value = inc.descripcion || '';
+  const segList = document.getElementById('ipSegList');
+  segList.innerHTML = '';
+  (inc.seguimiento || []).forEach(s => addSegRowPed(s.fecha, s.texto));
+  document.getElementById('btnFinPed').style.display = inc.estado === 'finalizado' ? 'none' : '';
+  document.getElementById('modalIncPed').classList.add('open');
+}
+
+function addSegRowPed(fecha = '', texto = '') {
+  const today = new Date().toISOString().split('T')[0];
+  const div = document.createElement('div');
+  div.className = 'seg-row';
+  div.innerHTML = `<input type="date" value="${fecha || today}"><textarea placeholder="Descripción del avance...">${texto}</textarea><button class="inc-btn" style="background:rgba(255,77,77,.1);color:#ff4d4d;border:1px solid rgba(255,77,77,.2);flex-shrink:0" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('ipSegList').appendChild(div);
+}
+
+function _getIncidenciaFormData() {
+  const seguimiento = [...document.getElementById('ipSegList').querySelectorAll('.seg-row')].map(row => ({
+    fecha: row.querySelector('input[type=date]').value,
+    texto: row.querySelector('textarea').value.trim()
+  })).filter(s => s.texto);
+  return {
+    id: document.getElementById('ipId').value || ('inc_' + Date.now()),
+    pedidoId: document.getElementById('ipPedidoId').value,
+    fecha: document.getElementById('ipFecha').value,
+    nFactura: document.getElementById('ipNFactura').value.trim(),
+    descripcion: document.getElementById('ipDescripcion').value.trim(),
+    seguimiento,
+    estado: 'en_curso'
+  };
+}
+
+function guardarIncidenciaPed() {
+  const inc = _getIncidenciaFormData();
+  if (!inc.descripcion) { alert('Describe la incidencia'); return; }
+  _saveIncidencia(inc);
+  cerrarModalInc();
+  filtrarPedidos();
+}
+
+function finalizarIncidenciaPed() {
+  const inc = _getIncidenciaFormData();
+  inc.estado = 'finalizado';
+  _saveIncidencia(inc);
+  cerrarModalInc();
+  filtrarPedidos();
+}
+
+function _saveIncidencia(inc) {
+  const esModo = new URLSearchParams(location.search).get('modo') === 'pedidos';
+  if (esModo) {
+    let data = JSON.parse(localStorage.getItem('blmx_pedidos_db') || '{}');
+    if (!data.incidencias) data.incidencias = [];
+    const idx = data.incidencias.findIndex(x => x.id === inc.id);
+    if (idx >= 0) data.incidencias[idx] = inc; else data.incidencias.push(inc);
+    localStorage.setItem('blmx_pedidos_db', JSON.stringify(data));
+    localStorage.setItem('blmx_pedidos_sync', JSON.stringify({ incidencias: data.incidencias, ts: Date.now() }));
+  } else {
+    if (!DB.incidencias) DB.incidencias = [];
+    const idx = DB.incidencias.findIndex(x => x.id === inc.id);
+    if (idx >= 0) DB.incidencias[idx] = inc; else DB.incidencias.push(inc);
+    saveDB();
+    updateBadgesSeguimiento();
+  }
+}
+
+function cerrarModalInc() {
+  document.getElementById('modalIncPed')?.classList.remove('open');
+}
+
+// ════════════════════════════════════════════
+// SEGUIMIENTO INCIDENCIAS (pantalla principal)
+// ════════════════════════════════════════════
+
+function renderIncidencias() {
+  // Sincronizar pedidos desde localStorage si la ventana secundaria ha guardado
+  const syncData = localStorage.getItem('blmx_pedidos_sync');
+  if (syncData) {
+    try {
+      const sync = JSON.parse(syncData);
+      if (sync.pedidos) DB.pedidosSeg = sync.pedidos;
+      if (sync.incidencias) DB.incidencias = sync.incidencias;
+      saveDB();
+      localStorage.removeItem('blmx_pedidos_sync');
+    } catch(e) {}
+  }
+
+  const txt = (document.getElementById('incFiltroTexto')?.value || '').toLowerCase();
+  const estado = document.getElementById('incFiltroEstado')?.value || 'todos';
+  const obra = document.getElementById('incFiltroObra')?.value || 'todos';
+
+  // Poblar filtro de obras
+  const obrasSel = document.getElementById('incFiltroObra');
+  if (obrasSel && obrasSel.options.length <= 1) {
+    Object.values(DB.projects||{}).forEach(p => {
+      const opt = document.createElement('option'); opt.value = p.name; opt.textContent = p.name;
+      obrasSel.appendChild(opt);
+    });
+  }
+
+  let incidencias = (DB.incidencias || []);
+  const pedidos = DB.pedidosSeg || [];
+
+  // Enriquecer con datos del pedido
+  const enriched = incidencias.map(inc => {
+    const ped = pedidos.find(p => p.id === inc.pedidoId) || {};
+    return { ...inc, nPedido: ped.nPedido || '', proveedor: ped.proveedor || '', obra: ped.obra || '', descPedido: ped.descripcion || '' };
+  });
+
+  // Filtrar
+  let filtered = enriched.filter(inc => {
+    const matchTxt = !txt || [inc.nPedido, inc.proveedor, inc.obra, inc.descripcion, inc.descPedido].join(' ').toLowerCase().includes(txt);
+    const matchEstado = estado === 'todos' || inc.estado === estado;
+    const matchObra = obra === 'todos' || inc.obra === obra;
+    return matchTxt && matchEstado && matchObra;
+  });
+
+  // Ordenar: en curso primero, luego por nPedido
+  filtered.sort((a, b) => {
+    if (a.estado !== b.estado) return a.estado === 'en_curso' ? -1 : 1;
+    return (a.nPedido || '').localeCompare(b.nPedido || '', undefined, { numeric: true });
+  });
+
+  const list = document.getElementById('incidenciasList');
+  if (!list) return;
+  if (filtered.length === 0) { list.innerHTML = '<div class="empty">Sin incidencias registradas.</div>'; return; }
+
+  list.innerHTML = `<div class="tbl-wrap"><table>
+    <thead><tr>
+      <th>ESTADO</th><th>Nº PEDIDO</th><th>PROVEEDOR</th><th>OBRA</th><th>DESCRIPCIÓN</th><th>FECHA</th><th></th>
+    </tr></thead>
+    <tbody>${filtered.map(inc => {
+      const esFin = inc.estado === 'finalizado';
+      return `<tr style="background:${esFin?'rgba(46,204,138,.04)':'rgba(245,200,66,.04)'}">
+        <td><span style="background:${esFin?'rgba(46,204,138,.15)':'rgba(245,200,66,.15)'};color:${esFin?'#2ecc8a':'#f5c842'};padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700">${esFin?'✓ Finalizado':'⚠️ En curso'}</span></td>
+        <td style="font-weight:700">${inc.nPedido}</td>
+        <td>${inc.proveedor}</td>
+        <td>${inc.obra}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${inc.descripcion}">${inc.descripcion||inc.descPedido||'—'}</td>
+        <td>${inc.fecha||''}</td>
+        <td><button class="btn btn-ghost btn-xs" onclick="abrirIncidenciaDesdeListado('${inc.id}')">📋 Ver</button></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+function abrirIncidenciaDesdeListado(incId) {
+  const inc = (DB.incidencias || []).find(i => i.id === incId); if (!inc) return;
+  const ped = (DB.pedidosSeg || []).find(p => p.id === inc.pedidoId) || {};
+  // Rellenar modal de incidencia (el mismo del screen principal)
+  document.getElementById('incId').value = inc.id;
+  document.getElementById('incNPedido').value = ped.nPedido || '';
+  document.getElementById('incProveedor').value = ped.proveedor || '';
+  document.getElementById('incObra').value = ped.obra || '';
+  document.getElementById('incFecha').value = inc.fecha || '';
+  document.getElementById('incNFactura').value = inc.nFactura || '';
+  document.getElementById('incDescripcion').value = inc.descripcion || '';
+  const segList = document.getElementById('incSeguimientoList');
+  segList.innerHTML = '';
+  (inc.seguimiento || []).forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'seg-row';
+    div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-start';
+    div.innerHTML = `<input type="date" value="${s.fecha}" style="width:160px;flex-shrink:0"><textarea style="flex:1;min-height:52px" placeholder="Descripción del avance...">${s.texto}</textarea><button class="btn btn-danger btn-xs" onclick="this.parentElement.remove()">✕</button>`;
+    segList.appendChild(div);
+  });
+  const btnFin = document.getElementById('btnFinalizarIncidencia');
+  if (btnFin) btnFin.style.display = inc.estado === 'finalizado' ? 'none' : '';
+  openModal('modalIncidencia');
+}
+
+function addSeguimientoRow() {
+  const today = new Date().toISOString().split('T')[0];
+  const div = document.createElement('div');
+  div.className = 'seg-row';
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:flex-start';
+  div.innerHTML = `<input type="date" value="${today}" style="width:160px;flex-shrink:0"><textarea style="flex:1;min-height:52px" placeholder="Descripción del avance..."></textarea><button class="btn btn-danger btn-xs" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('incSeguimientoList').appendChild(div);
+}
+
+function _getIncidenciaModalData() {
+  const seguimiento = [...document.getElementById('incSeguimientoList').querySelectorAll('.seg-row')].map(row => ({
+    fecha: row.querySelector('input[type=date]').value,
+    texto: row.querySelector('textarea').value.trim()
+  })).filter(s => s.texto);
+  return {
+    id: document.getElementById('incId').value || ('inc_' + Date.now()),
+    pedidoId: (DB.incidencias||[]).find(i => i.id === document.getElementById('incId').value)?.pedidoId || '',
+    fecha: document.getElementById('incFecha').value,
+    nFactura: document.getElementById('incNFactura').value.trim(),
+    descripcion: document.getElementById('incDescripcion').value.trim(),
+    seguimiento,
+    estado: 'en_curso'
+  };
+}
+
+function guardarIncidencia() {
+  const inc = _getIncidenciaModalData();
+  if (!inc.descripcion) { alert('Describe la incidencia'); return; }
+  _saveIncidencia(inc);
+  closeModal('modalIncidencia');
+  renderIncidencias();
+}
+
+function finalizarIncidencia() {
+  const inc = _getIncidenciaModalData();
+  inc.estado = 'finalizado';
+  _saveIncidencia(inc);
+  closeModal('modalIncidencia');
+  renderIncidencias();
+}
+
+function updateBadgesSeguimiento() {
+  const incPendientes = (DB.incidencias || []).filter(i => i.estado === 'en_curso').length;
+  const badge = document.getElementById('homeIncidenciasBadge');
+  if (badge) { badge.textContent = incPendientes; badge.style.display = incPendientes > 0 ? 'flex' : 'none'; }
+  const pedPend = (DB.pedidosSeg || []).filter(p => p.estado !== 'entregado').length;
+  const badgePed = document.getElementById('homePedidosPendBadge');
+  if (badgePed) { badgePed.textContent = pedPend; badgePed.style.display = pedPend > 0 ? 'flex' : 'none'; }
+}
+
+
 </script>
 <script>
 if ('serviceWorker' in navigator) {
@@ -4342,5 +4962,70 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+
+<!-- ════════════════════════════════════════════
+     SCREEN: SEGUIMIENTO INCIDENCIAS
+════════════════════════════════════════════ -->
+<div class="screen" id="screenSeguimientoIncidencias">
+  <div class="topbar">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <span class="topbar-title">⚠️ Seguimiento de Incidencias</span>
+    <div class="topbar-right">
+      <span id="syncStatus2" style="font-size:10px;color:var(--text3)"></span>
+    </div>
+  </div>
+  <div class="main">
+    <!-- Filtros -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <input type="text" id="incFiltroTexto" placeholder="🔍 Buscar..." style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;flex:1;min-width:140px" oninput="renderIncidencias()">
+      <select id="incFiltroEstado" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px" onchange="renderIncidencias()">
+        <option value="todos">Todos los estados</option>
+        <option value="en_curso">En curso</option>
+        <option value="finalizado">Finalizado</option>
+      </select>
+      <select id="incFiltroObra" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px" onchange="renderIncidencias()">
+        <option value="todos">Todas las obras</option>
+      </select>
+    </div>
+    <div id="incidenciasList"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     MODAL: FORMULARIO INCIDENCIA
+════════════════════════════════════════════ -->
+<div class="overlay" id="modalIncidencia">
+  <div class="modal" style="max-width:600px;width:96%;max-height:90vh;overflow-y:auto">
+    <h3 style="color:var(--warn);margin-bottom:16px">⚠️ Formulario de Incidencia</h3>
+    <input type="hidden" id="incId">
+    <div class="frow">
+      <div class="fg"><label>Nº Pedido</label><input type="text" id="incNPedido" readonly style="background:var(--s3);color:var(--text3)"></div>
+      <div class="fg"><label>Proveedor</label><input type="text" id="incProveedor" readonly style="background:var(--s3);color:var(--text3)"></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label>Obra</label><input type="text" id="incObra" readonly style="background:var(--s3);color:var(--text3)"></div>
+      <div class="fg"><label>Fecha incidencia</label><input type="date" id="incFecha"></div>
+    </div>
+    <div class="fg" style="margin-bottom:12px">
+      <label>Descripción de la incidencia</label>
+      <textarea id="incDescripcion" rows="4" placeholder="Describe la incidencia y sus detalles..."></textarea>
+    </div>
+    <div class="fg" style="margin-bottom:16px">
+      <label>Nº Factura (si procede)</label>
+      <input type="text" id="incNFactura" placeholder="Opcional">
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.1px;margin-bottom:8px;display:flex;align-items:center;gap:8px">
+      <div style="width:3px;height:14px;background:var(--accent);border-radius:2px"></div>
+      Seguimiento
+    </div>
+    <div id="incSeguimientoList" style="margin-bottom:8px"></div>
+    <button class="btn btn-ghost btn-sm" onclick="addSeguimientoRow()" style="margin-bottom:16px">+ Añadir seguimiento</button>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-ghost" onclick="closeModal('modalIncidencia')">Cerrar</button>
+      <button class="btn btn-primary" onclick="btnGuardar(this, guardarIncidencia)">💾 Guardar</button>
+      <button class="btn btn-green" id="btnFinalizarIncidencia" onclick="btnGuardar(this, finalizarIncidencia)">✅ Finalizado</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

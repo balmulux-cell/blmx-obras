@@ -517,9 +517,15 @@ tr:hover td{background:var(--s1)!important}
       <button class="btn btn-primary" style="width:100%;padding:14px;font-size:14px" onclick="btnGuardar(this, saveJornada)">💾 Registrar Jornada</button>
     </div>
 
-    <!-- Historial jornadas propias -->
+    <!-- Filtro trabajador solo para oficina -->
+    <div id="jornadaFiltroTrabRow" style="display:none;margin-bottom:10px">
+      <select id="jornadaFiltroTrab" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;width:100%" onchange="renderJornadaHist()">
+        <option value="todos">Todos los trabajadores</option>
+      </select>
+    </div>
+    <!-- Historial jornadas -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <div class="stitle" style="margin:0"><div class="stitle-bar"></div>Mis últimas jornadas</div>
+      <div class="stitle" style="margin:0"><div class="stitle-bar"></div>Últimas jornadas</div>
     </div>
     <div id="jornadaHistList"></div>
 
@@ -1449,7 +1455,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.1.0'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.1.1'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -1547,8 +1553,17 @@ async function loadDB() {
   document.getElementById('loadingOverlay').style.display = 'none';
 }
 
+let _saveQueue = Promise.resolve();
+
 async function saveDB() {
   try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch(e){}
+  if (!syncEnabled) return;
+  // Serializar: esperar a que termine el save anterior antes de empezar otro
+  _saveQueue = _saveQueue.then(() => _doSaveDB());
+  return _saveQueue;
+}
+
+async function _doSaveDB() {
   if (!syncEnabled) return;
   isSaving = true; setSyncStatus('saving');
   clearTimeout(saveTimeout);
@@ -1990,8 +2005,10 @@ function savePartida(){
 }
 function deletePartida(id){
   const p=activeProject();if(!p)return;
-  p.partidas=(p.partidas||[]).filter(x=>x.id!==id);
-  saveDB();renderAll();
+  showConfirmModal('¿Eliminar esta partida?', ()=>{
+    p.partidas=(p.partidas||[]).filter(x=>x.id!==id);
+    saveDB();renderAll();
+  });
 }
 
 // ════════════════════════════════════════════
@@ -2146,7 +2163,7 @@ function renderHistorial(){
 }
 async function deleteParte(id){
   const p=activeProject();if(!p)return;
-  if(!confirm('¿Borrar este parte? Las cantidades sumadas NO se restarán automáticamente.'))return;
+  await new Promise(resolve => showConfirmModal('¿Borrar este parte? Las cantidades sumadas NO se restarán automaticamente.', resolve));
   p.updates=(p.updates||[]).filter(u=>u.id!==id);
   await saveDB();renderAll();
 }
@@ -2173,7 +2190,9 @@ function toggleTarea(id){
 }
 function deleteTarea(id){
   const p=activeProject();if(!p)return;
-  p.tareas=(p.tareas||[]).filter(x=>x.id!==id);saveDB();renderTareas();
+  showConfirmModal('¿Eliminar esta tarea?', ()=>{
+    p.tareas=(p.tareas||[]).filter(x=>x.id!==id);saveDB();renderTareas();
+  });
 }
 function setFiltroTarea(f,btn){
   filtroTarea=f;
@@ -2257,7 +2276,7 @@ async function saveRespuesta(){
 }
 async function deleteConsulta(id){
   const p=activeProject();if(!p)return;
-  if(!confirm('¿Eliminar esta consulta?'))return;
+  await new Promise(resolve => showConfirmModal('¿Eliminar esta consulta?', resolve));
   p.consultas=(p.consultas||[]).filter(x=>x.id!==id);
   await saveDB();renderAll();
 }
@@ -2522,7 +2541,7 @@ async function saveIncidenciaTexto(pedidoId, val) {
 
 async function deletePedido(id) {
   const p = activeProject(); if (!p) return;
-  if (!confirm('¿Eliminar este pedido?')) return;
+  await new Promise(resolve => showConfirmModal('¿Eliminar este pedido?', resolve));
   p.pedidos = (p.pedidos||[]).filter(x => x.id !== id);
   await saveDB(); renderAll();
 }
@@ -2668,6 +2687,7 @@ function populateJornadaDropdowns(){
   selO.innerHTML='<option value="">— Selecciona obra —</option>'+proyectos.map(([id,p])=>`<option value="${id}" ${id===lastObra?'selected':''}>${p.name}</option>`).join('');
 }
 async function saveJornada(){
+  if (!navigator.onLine) { showToast('Sin conexión a internet. No se puede registrar la jornada ahora.', 'error'); return; }
   const fecha=document.getElementById('jFecha').value;
   const trabId=document.getElementById('jTrabajador').value;
   const obraId=document.getElementById('jObra').value;
@@ -2706,10 +2726,25 @@ async function saveJornada(){
 function renderJornadaHist(){
   const list=document.getElementById('jornadaHistList');
   if(!list)return;
+
+  // Filtro de trabajador (solo oficina)
+  const filtroTrabRow = document.getElementById('jornadaFiltroTrabRow');
+  const filtroTrabSel = document.getElementById('jornadaFiltroTrab');
+  if (filtroTrabRow) filtroTrabRow.style.display = isOficina ? 'block' : 'none';
+  if (isOficina && filtroTrabSel) {
+    const cur = filtroTrabSel.value;
+    filtroTrabSel.innerHTML = '<option value="todos">Todos los trabajadores</option>' +
+      (DB.trabajadores||[]).map(t=>`<option value="${t.id}"${t.id===cur?' selected':''}>${t.nombre}</option>`).join('');
+  }
+  const filtroTrabOficina = isOficina ? (filtroTrabSel?.value || 'todos') : null;
+
   const trabId=document.getElementById('jTrabajador')?.value;
-  // Admins see all (filtered by dropdown), operarios/jefes only see their own
   let jornadas=(DB.jornadas||[]).filter(j=>{
-    if(isAdmin) return !trabId || j.trabId===trabId;
+    if(isAdmin) {
+      const byTrabFiltro = filtroTrabOficina === 'todos' || !filtroTrabOficina || j.trabId === filtroTrabOficina;
+      const bySelector = !trabId || j.trabId === trabId;
+      return byTrabFiltro && bySelector;
+    }
     return j.trabId === currentUser?.id;
   });
   const recientes=[...jornadas].sort((a,b)=>b.id-a.id).slice(0,10);
@@ -2778,7 +2813,8 @@ async function saveTrabajador(){
   renderTrabajadores();populateJornadaDropdowns();
 }
 async function deleteTrabajador(id){
-  if(!confirm('¿Eliminar este trabajador?'))return;
+  const t = (DB.trabajadores||[]).find(x=>x.id===id);
+  await new Promise(resolve => showConfirmModal('¿Eliminar al trabajador ' + (t?.nombre||'') + '?', resolve));
   DB.trabajadores=(DB.trabajadores||[]).filter(t=>t.id!==id);
   await saveDB();renderTrabajadores();populateJornadaDropdowns();
 }
@@ -2838,9 +2874,10 @@ function pptoRenderPage(pageNum){
 function pptoPrevPage(){if(!pptoPdfDoc||pptoCurrentPage<=1)return;pptoCurrentPage--;pptoRenderPage(pptoCurrentPage);}
 function pptoNextPage(){if(!pptoPdfDoc||pptoCurrentPage>=pptoPdfDoc.numPages)return;pptoCurrentPage++;pptoRenderPage(pptoCurrentPage);}
 function deletePpto(){
-  if(!confirm('¿Eliminar el PDF?'))return;
-  localStorage.removeItem('ppto_'+DB.activeId);localStorage.removeItem('ppto_name_'+DB.activeId);
+  showConfirmModal('¿Eliminar el PDF del presupuesto?', ()=>{
+  localStorage.removeItem('ppto_'+DB.activeId);    localStorage.removeItem('ppto_name_'+DB.activeId);
   pptoPdfDoc=null;renderPpto();
+  });
 }
 
 // ════════════════════════════════════════════
@@ -3316,6 +3353,11 @@ function renderLegalesTable() {
 // Or from HTML: onclick="btnGuardar(this, saveJornada)"
 async function btnGuardar(btn, fn) {
   if (!btn || btn.classList.contains('btn-loading')) return;
+  // Bloquear si no hay conexión (excepto login)
+  if (!navigator.onLine && fn !== confirmWelcome) {
+    showToast('Sin conexión a internet. No se puede guardar ahora.', 'error');
+    return;
+  }
   const original = btn.innerHTML;
   btn.classList.add('btn-loading');
   btn.innerHTML = `<span class="btn-spinner"></span> Guardando...`;
@@ -3323,11 +3365,48 @@ async function btnGuardar(btn, fn) {
     await fn();
   } catch(e) {
     console.error('Error en guardar:', e);
+    showToast('Error al guardar. Comprueba la conexión.', 'error');
   } finally {
     btn.classList.remove('btn-loading');
     btn.innerHTML = original;
   }
 }
+
+function showToast(msg, tipo = 'info') {
+  // Eliminar toast anterior si existe
+  const prev = document.getElementById('blmxToast');
+  if (prev) prev.remove();
+  const colors = { info: '#5b9cf6', error: '#ff4d4d', ok: '#2ecc8a', warn: '#f5c842' };
+  const icons  = { info: 'ℹ️', error: '🔴', ok: '✅', warn: '⚠️' };
+  const toast = document.createElement('div');
+  toast.id = 'blmxToast';
+  toast.style.cssText = `position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+    background:#1e2530;border:1px solid ${colors[tipo]};color:#f5f7fa;
+    padding:12px 20px;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;
+    font-weight:600;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.5);
+    display:flex;align-items:center;gap:8px;max-width:90vw;text-align:center;
+    animation:toastIn .2s ease`;
+  toast.innerHTML = `<span>${icons[tipo]}</span><span>${msg}</span>`;
+  // Añadir animación CSS si no existe
+  if (!document.getElementById('toastStyle')) {
+    const s = document.createElement('style');
+    s.id = 'toastStyle';
+    s.textContent = '@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+    document.head.appendChild(s);
+  }
+  document.body.appendChild(toast);
+  setTimeout(() => { if (toast.parentNode) toast.remove(); }, 4000);
+}
+
+// Escuchar cambios de conexión
+window.addEventListener('offline', () => {
+  setSyncStatus('offline');
+  showToast('Sin conexión a internet. Los cambios no se guardarán.', 'warn');
+});
+window.addEventListener('online', () => {
+  setSyncStatus('ok');
+  showToast('Conexión restaurada.', 'ok');
+});
 // ════════════════════════════════════════════
 const FICHA_FECHAS = [
   { key: 'fechaProvisional',  label: 'Fecha provisional de obra' },
@@ -3822,6 +3901,10 @@ async function saveGasto() {
   if (!importe || importe <= 0) return alert('Introduce un importe válido');
   if (!trabajador) return alert('Selecciona un trabajador');
   if (!gastoFileToUpload) return alert('Debes adjuntar una foto o PDF del gasto');
+  if (!navigator.onLine) {
+    showToast('Sin conexión a internet. No se puede guardar el gasto ahora.', 'error');
+    return;
+  }
 
   let driveFileId = null, driveLink = null, finalFileName = null;
   if (gastoFileToUpload) {
@@ -4538,7 +4621,9 @@ function nuevaLineaAcopio() {
   setAcopioData(data); renderAcopio();
 }
 function borrarLineaAcopio(idx) {
-  const data = getAcopioData(); data.splice(idx,1); setAcopioData(data); renderAcopio();
+  showConfirmModal('¿Eliminar esta linea de material?', ()=>{
+    const data = getAcopioData(); data.splice(idx,1); setAcopioData(data); renderAcopio();
+  });
 }
 function importarAcopioExcel(input) {
   const file = input.files[0]; if (!file) return;
@@ -4638,7 +4723,9 @@ function nuevaLineaAvance() {
   setAvanceData(data); renderAvance();
 }
 function borrarLineaAvance(id) {
-  setAvanceData(getAvanceData().filter(x=>String(x.id)!==String(id))); renderAvance();
+  showConfirmModal('¿Eliminar esta linea de avance?', ()=>{
+    setAvanceData(getAvanceData().filter(x=>String(x.id)!==String(id))); renderAvance();
+  });
 }
 function toggleSelAvance(id,checked) {
   const data=getAvanceData(); const r=data.find(x=>String(x.id)===String(id)); if(!r) return;

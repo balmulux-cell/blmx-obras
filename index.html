@@ -1455,7 +1455,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.1.1'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.1.2'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2732,20 +2732,32 @@ function renderJornadaHist(){
   const filtroTrabSel = document.getElementById('jornadaFiltroTrab');
   if (filtroTrabRow) filtroTrabRow.style.display = isOficina ? 'block' : 'none';
   if (isOficina && filtroTrabSel) {
+    // Guardar seleccion actual ANTES de tocar el DOM
     const cur = filtroTrabSel.value;
-    filtroTrabSel.innerHTML = '<option value="todos">Todos los trabajadores</option>' +
-      (DB.trabajadores||[]).map(t=>`<option value="${t.id}"${t.id===cur?' selected':''}>${t.nombre}</option>`).join('');
+    const newHtml = '<option value="todos">Todos los trabajadores</option>' +
+      (DB.trabajadores||[]).map(t=>`<option value="${t.id}">${t.nombre}</option>`).join('');
+    // Solo reconstruir si cambiaron los trabajadores para no perder la seleccion
+    if (filtroTrabSel.dataset.lastHtml !== newHtml) {
+      filtroTrabSel.innerHTML = newHtml;
+      filtroTrabSel.dataset.lastHtml = newHtml;
+    }
+    // Restaurar seleccion
+    if (cur && filtroTrabSel.querySelector(`option[value="${cur}"]`)) {
+      filtroTrabSel.value = cur;
+    }
   }
+  // Leer valor despues de restaurarlo
   const filtroTrabOficina = isOficina ? (filtroTrabSel?.value || 'todos') : null;
 
   const trabId=document.getElementById('jTrabajador')?.value;
   let jornadas=(DB.jornadas||[]).filter(j=>{
     if(isAdmin) {
-      const byTrabFiltro = filtroTrabOficina === 'todos' || !filtroTrabOficina || j.trabId === filtroTrabOficina;
-      const bySelector = !trabId || j.trabId === trabId;
+      // Comparar siempre como string para evitar fallos num vs string
+      const byTrabFiltro = filtroTrabOficina === 'todos' || !filtroTrabOficina || String(j.trabId) === String(filtroTrabOficina);
+      const bySelector = !trabId || String(j.trabId) === String(trabId);
       return byTrabFiltro && bySelector;
     }
-    return j.trabId === currentUser?.id;
+    return String(j.trabId) === String(currentUser?.id);
   });
   const recientes=[...jornadas].sort((a,b)=>b.id-a.id).slice(0,10);
   if(recientes.length===0){list.innerHTML='<div class="empty">Sin jornadas registradas todavía.</div>';return;}

@@ -1455,7 +1455,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.1.9'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.2.0'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -4961,12 +4961,15 @@ function _buildVentanaPedidos() {
         <div class="fg"><label>Fecha pedido</label><input type="date" id="pedFechaPedido"></div>
         <div class="fg"><label>Fecha entrega</label><input type="date" id="pedFechaEntrega"></div>
       </div>
-      <div class="fg"><label>Lugar entrega</label><select id="pedLugarEntrega">
-        <option value="En obra">En obra</option>
-        <option value="En la nave">En la nave</option>
-        <option value="Recoger en delegación">Recoger en delegación</option>
-        <option value="Otro">Otro</option>
-      </select></div>
+      <div class="fg"><label>Lugar entrega</label>
+        <select id="pedLugarEntrega" onchange="toggleLugarExtra()">
+          <option value="En obra">En obra</option>
+          <option value="En la nave">En la nave</option>
+          <option value="Recoger en delegación">Recoger en delegación</option>
+          <option value="Otro">Otro</option>
+        </select>
+        <input type="text" id="pedLugarExtra" placeholder="Especifica el lugar..." style="display:none;margin-top:6px" oninput="syncLugarEntrega()">
+      </div>
       <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button class="btn btn-ghost" onclick="cerrarModalPed()">Cancelar</button>
         <button class="btn btn-primary" onclick="guardarPedido()">💾 Guardar</button>
@@ -5084,6 +5087,8 @@ function nuevoPedido() {
   document.getElementById('pedEstado').value = 'sin_tramitar';
   document.getElementById('pedFechaPedido').value = today;
   document.getElementById('pedLugarEntrega').value = 'En obra';
+  const extraN = document.getElementById('pedLugarExtra');
+  if (extraN) { extraN.value = ''; extraN.style.display = 'none'; }
   document.getElementById('modalPed').classList.add('open');
   setTimeout(() => document.getElementById('pedNPedido').focus(), 100);
 }
@@ -5098,11 +5103,41 @@ function editarPedido(id) {
   document.getElementById('pedDescripcion').value = p.descripcion || '';
   document.getElementById('pedFechaPedido').value = p.fechaPedido || '';
   document.getElementById('pedFechaEntrega').value = p.fechaEntrega || '';
-  document.getElementById('pedLugarEntrega').value = p.lugarEntrega || 'En obra';
+  // Restaurar lugar entrega: puede ser "Recoger en delegación: X" o "Otro: X"
+  const lugarVal = p.lugarEntrega || 'En obra';
+  const lugarSel = document.getElementById('pedLugarEntrega');
+  const lugarExtra = document.getElementById('pedLugarExtra');
+  const prefijos = ['Recoger en delegación: ', 'Otro: '];
+  let baseVal = lugarVal, extraVal = '';
+  for (const pref of prefijos) {
+    if (lugarVal.startsWith(pref)) {
+      baseVal = pref.slice(0, -2); // quitar ': '
+      extraVal = lugarVal.slice(pref.length);
+      break;
+    }
+  }
+  if (lugarSel) lugarSel.value = baseVal;
+  if (lugarExtra) {
+    lugarExtra.value = extraVal;
+    lugarExtra.style.display = extraVal ? 'block' : 'none';
+  }
   document.getElementById('modalPed').classList.add('open');
 }
 
 function cerrarModalPed() { document.getElementById('modalPed').classList.remove('open'); }
+
+function toggleLugarExtra() {
+  const sel = document.getElementById('pedLugarEntrega');
+  const extra = document.getElementById('pedLugarExtra');
+  if (!sel || !extra) return;
+  const needs = sel.value === 'Recoger en delegación' || sel.value === 'Otro';
+  extra.style.display = needs ? 'block' : 'none';
+  if (!needs) extra.value = '';
+}
+
+function syncLugarEntrega() {
+  // El valor real se construye al guardar, no hace falta sincronizar
+}
 
 function guardarPedido() {
   const nPedido = document.getElementById('pedNPedido').value.trim();
@@ -5116,7 +5151,12 @@ function guardarPedido() {
     descripcion: document.getElementById('pedDescripcion').value.trim(),
     fechaPedido: document.getElementById('pedFechaPedido').value,
     fechaEntrega: document.getElementById('pedFechaEntrega').value,
-    lugarEntrega: document.getElementById('pedLugarEntrega').value
+    lugarEntrega: (() => {
+      const sel = document.getElementById('pedLugarEntrega').value;
+      const extra = document.getElementById('pedLugarExtra').value.trim();
+      if ((sel === 'Recoger en delegación' || sel === 'Otro') && extra) return sel + ': ' + extra;
+      return sel;
+    })()
   };
   _fbPedidos.child(id).set(p);
   cerrarModalPed();

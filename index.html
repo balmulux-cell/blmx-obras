@@ -1455,7 +1455,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.2.0'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.2.1'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -1572,32 +1572,37 @@ async function _doSaveDB() {
   return new Promise(resolve => {
     saveTimeout = setTimeout(async () => {
       try {
-        const projObj = DB.projects || {};
-        const trabObj = {};
-        (DB.trabajadores||[]).forEach(t => { trabObj[t.id] = t; });
-        const jornObj = {};
-        (DB.jornadas||[]).forEach(j => { jornObj[j.id] = j; });
-        const gastosObj = {};
-        (DB.gastos||[]).forEach(g => { gastosObj[g.id] = g; });
-        const fotosObj = DB.fotos || {};
-        await DB_REF.child('projects').set(JSON.parse(JSON.stringify(projObj)));
-        await DB_REF.child('trabajadores').set(trabObj);
-        await DB_REF.child('jornadas').set(jornObj);
-        await DB_REF.child('gastos').set(gastosObj);
-        await DB_REF.child('fotos').set(fotosObj);
-        const pedObj = {};
-        (DB.pedidosSeg||[]).forEach(p => { pedObj[p.id] = p; });
-        await DB_REF.child('pedidosSeg').set(pedObj);
-        const incObj = {};
-        (DB.incidencias||[]).forEach(i => { incObj[i.id] = i; });
-        await DB_REF.child('incidencias').set(incObj);
-        // Guardar acopio y avance de todas las obras
+        // Usar update() por nodo en lugar de set() completo
+        // Así dos usuarios guardando a la vez no se sobreescriben
+        const updates = {};
+
+        // Projects: set completo (estructura compleja, cambios poco frecuentes)
+        updates['projects'] = JSON.parse(JSON.stringify(DB.projects || {}));
+
+        // Trabajadores: por nodo individual
+        (DB.trabajadores||[]).forEach(t => { updates['trabajadores/' + t.id] = t; });
+
+        // Jornadas: cada jornada como nodo independiente
+        (DB.jornadas||[]).forEach(j => { updates['jornadas/' + j.id] = j; });
+
+        // Gastos: cada gasto como nodo independiente
+        (DB.gastos||[]).forEach(g => { updates['gastos/' + g.id] = g; });
+
+        // Fotos: set completo (estructura por obra)
+        updates['fotos'] = DB.fotos || {};
+
+        // Pedidos e incidencias: ya usan _fbPedidos.child(id).set() directamente
+        // Solo sincronizar desde DB local si existen (fallback)
+        (DB.pedidosSeg||[]).forEach(p => { updates['pedidosSeg/' + p.id] = p; });
+        (DB.incidencias||[]).forEach(i => { updates['incidencias/' + i.id] = i; });
+
+        // Acopio y avance por obra
         const extraKeys = Object.keys(DB).filter(k => k.startsWith('acopio_') || k.startsWith('avance_'));
-        for (const k of extraKeys) {
-          await DB_REF.child(k).set(DB[k] || []);
-        }
+        extraKeys.forEach(k => { updates[k] = DB[k] || []; });
+
+        await DB_REF.update(updates);
         setSyncStatus('ok');
-      } catch(e) { setSyncStatus('error'); }
+      } catch(e) { setSyncStatus('error'); console.error('saveDB error:', e); }
       finally { setTimeout(()=>{ isSaving=false; },500); resolve(); }
     }, 300);
   });
@@ -1785,6 +1790,29 @@ function switchProject() {
 function createProject() {
   const name = document.getElementById('newProjName').value.trim();
   if (!name) return alert('Escribe un nombre');
+
+  // Validar duplicado por código de 5 dígitos (ej: 25165_NOMBRE)
+  const existingNames = Object.values(DB.projects || {}).map(p => p.name.toUpperCase());
+  const nameUpper = name.toUpperCase();
+
+  // Comprobar nombre exacto duplicado
+  if (existingNames.includes(nameUpper)) {
+    return alert('Ya existe una obra con ese nombre: ' + name);
+  }
+
+  // Comprobar código de 5 dígitos duplicado (si el nombre empieza por 5 dígitos + _)
+  const codigoMatch = nameUpper.match(/^(\d{5})_/);
+  if (codigoMatch) {
+    const codigo = codigoMatch[1];
+    const obraConMismoCodigo = Object.values(DB.projects || {}).find(p => {
+      const m = p.name.toUpperCase().match(/^(\d{5})_/);
+      return m && m[1] === codigo;
+    });
+    if (obraConMismoCodigo) {
+      return alert('Ya existe una obra con el código ' + codigo + ':\n' + obraConMismoCodigo.name + '\n\nRevisa si ya está creada antes de continuar.');
+    }
+  }
+
   const id = 'p_' + Date.now();
   const ficha = getFichaFromForm('newProj');
   if (!DB.projects) DB.projects = {};
@@ -4482,7 +4510,7 @@ async function checkVersion() {
     // Comprobar si el index.html del servidor es diferente al cacheado
     const r = await fetch(location.href + '?v=' + Date.now(), { cache: 'no-store' });
     const text = await r.text();
-    const match = text.match(/APP_VERSION = '([^']+)'/);
+    const match = text.match(/APP_VERSION = '1.2.1']+)'/);
     const serverVersion = match ? match[1] : null;
     if (serverVersion && serverVersion !== APP_VERSION) {
       if (vl) vl.innerHTML = `v${APP_VERSION} <span style="color:var(--warn)">→ v${serverVersion} disponible</span>`;

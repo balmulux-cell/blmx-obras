@@ -4510,7 +4510,7 @@ async function checkVersion() {
     // Comprobar si el index.html del servidor es diferente al cacheado
     const r = await fetch(location.href + '?v=' + Date.now(), { cache: 'no-store' });
     const text = await r.text();
-    const match = text.match(/APP_VERSION = '1.2.1']+)'/);
+    const match = text.match(/APP_VERSION = '([^']+)'/);
     const serverVersion = match ? match[1] : null;
     if (serverVersion && serverVersion !== APP_VERSION) {
       if (vl) vl.innerHTML = `v${APP_VERSION} <span style="color:var(--warn)">→ v${serverVersion} disponible</span>`;

@@ -1455,7 +1455,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.1.7'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.1.8'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2742,6 +2742,13 @@ function poblarFiltroJornada() {
 function cambiarFiltroJornada() {
   const sel = document.getElementById('jornadaFiltroTrab');
   if (sel) _jornadaFiltroTrabId = sel.value;
+  console.log('cambiarFiltro: valor='+_jornadaFiltroTrabId+' jornadas='+DB.jornadas.length+' isAdmin='+isAdmin+' isOficina='+isOficina);
+  // Forzar filtrado ignorando el listener de Firebase temporalmente
+  const jornadas = (DB.jornadas||[]).filter(j => {
+    const byFiltro = _jornadaFiltroTrabId === 'todos' || String(j.trabId) === String(_jornadaFiltroTrabId);
+    return isAdmin ? byFiltro : String(j.trabId) === String(currentUser?.id);
+  });
+  console.log('jornadas filtradas='+jornadas.length);
   renderJornadaHist();
 }
 

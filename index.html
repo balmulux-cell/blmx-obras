@@ -519,7 +519,7 @@ tr:hover td{background:var(--s1)!important}
 
     <!-- Filtro trabajador solo para oficina -->
     <div id="jornadaFiltroTrabRow" style="display:none;margin-bottom:10px">
-      <select id="jornadaFiltroTrab" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;width:100%" onchange="cambiarFiltroJornada()">
+      <select id="jornadaFiltroTrab" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;width:100%" onchange="cambiarFiltroJornada()" oninput="cambiarFiltroJornada()">
         <option value="todos">Todos los trabajadores</option>
       </select>
     </div>
@@ -1455,7 +1455,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.1.6'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.1.7'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2734,13 +2734,9 @@ function poblarFiltroJornada() {
   if (!isOficina) return;
   sel.innerHTML = '<option value="todos">Todos los trabajadores</option>' +
     (DB.trabajadores||[]).map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
-  // Aplicar valor desde variable global
-  sel.value = _jornadaFiltroTrabId;
-  // Si el valor no existe en las opciones, resetear a todos
-  if (sel.value !== _jornadaFiltroTrabId) {
-    _jornadaFiltroTrabId = 'todos';
-    sel.value = 'todos';
-  }
+  // Resetear siempre a "todos" al entrar a la pantalla
+  _jornadaFiltroTrabId = 'todos';
+  sel.value = 'todos';
 }
 
 function cambiarFiltroJornada() {
@@ -2761,11 +2757,7 @@ function renderJornadaHist(){
   const filtroTrabOficina = isOficina ? _jornadaFiltroTrabId : 'todos';
 
   const trabId = document.getElementById('jTrabajador')?.value;
-  // LOG TEMPORAL para debug
-  if (filtroTrabOficina !== 'todos') {
-    const sample = (DB.jornadas||[]).slice(0,3).map(j=>({trabId:j.trabId, tipo:typeof j.trabId}));
-    console.log('FILTRO:', filtroTrabOficina, '| tipo:', typeof filtroTrabOficina, '| jornadas sample:', JSON.stringify(sample));
-  }
+
   let jornadas = (DB.jornadas||[]).filter(j => {
     if (isAdmin) {
       const byFiltro = filtroTrabOficina === 'todos' || String(j.trabId) === String(filtroTrabOficina);

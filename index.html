@@ -1455,7 +1455,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.1.5'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.1.6'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2761,6 +2761,11 @@ function renderJornadaHist(){
   const filtroTrabOficina = isOficina ? _jornadaFiltroTrabId : 'todos';
 
   const trabId = document.getElementById('jTrabajador')?.value;
+  // LOG TEMPORAL para debug
+  if (filtroTrabOficina !== 'todos') {
+    const sample = (DB.jornadas||[]).slice(0,3).map(j=>({trabId:j.trabId, tipo:typeof j.trabId}));
+    console.log('FILTRO:', filtroTrabOficina, '| tipo:', typeof filtroTrabOficina, '| jornadas sample:', JSON.stringify(sample));
+  }
   let jornadas = (DB.jornadas||[]).filter(j => {
     if (isAdmin) {
       const byFiltro = filtroTrabOficina === 'todos' || String(j.trabId) === String(filtroTrabOficina);

@@ -1514,7 +1514,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.2.6'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.2.1'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -4818,7 +4818,7 @@ function limpiarAdjPendientes(ctx) {
   renderAdjGrid(ctx);
 }
 
-// Subir adjuntos pendientes a R2 y devolver array de {tipo,url,nombre}
+// Subir adjuntos pendientes a R2 usando driveUploadFile (igual que fotos de obra)
 async function subirAdjuntos(ctx, carpeta) {
   const lista = _adjPendientes[ctx];
   if (!lista.length) return [];
@@ -4834,15 +4834,11 @@ async function subirAdjuntos(ctx, carpeta) {
       } else {
         file = a.file;
       }
-      const nombre = Date.now() + '_' + Math.random().toString(36).slice(2,6) + (a.tipo === 'pdf' ? '.pdf' : '.jpg');
-      const r2key = carpeta + '/' + nombre;
-      const wurl = 'https://blmx-drive-worker.balmulux.workers.dev/upload';
-      const fd = new FormData(); fd.append('file', file); fd.append('key', r2key);
-      const resp = await fetch(wurl, { method: 'POST', body: fd });
-      if (resp.ok) {
-        const data = await resp.json();
-        urls.push({ tipo: a.tipo, url: data.url || data.publicUrl || (wurl.replace('/upload','') + '/' + r2key), nombre: a.nombre || nombre });
-      }
+      const ext = a.tipo === 'pdf' ? '.pdf' : '.jpg';
+      const nombre = Date.now() + '_' + Math.random().toString(36).slice(2,6) + ext;
+      const fileConNombre = new File([file], nombre, { type: file.type });
+      const result = await driveUploadFile(fileConNombre, carpeta);
+      urls.push({ tipo: a.tipo, url: result.webViewLink, nombre: a.nombre || nombre });
     } catch(e) { console.warn('Error subiendo adjunto:', e); }
   }
   return urls;

@@ -672,11 +672,8 @@ input:checked+.tgl-s:before{transform:translateX(16px);}
 // ============================================================
 // DATOS
 // ============================================================
-let users=[
-  {key:'alexandra', name:'Alexandra Grazioli', role:'Dirección · Admin', ini:'AG', color:'#f5a623', admin:true,  jefe:false, jornadaMin:480},
-  {key:'lucia',     name:'Lucía Aneiros',       role:'Oficina Técnica',   ini:'LA', color:'#4a9eff', admin:false, jefe:false, jornadaMin:480},
-  {key:'marta',     name:'Marta Alberte',        role:'Oficina Técnica',   ini:'MA', color:'#2dc78f', admin:false, jefe:false, jornadaMin:480},
-];
+// Usuarios cargados dinámicamente desde Firebase
+let users = [];
 let categories=[
   {key:'presupuestos',   name:'Presupuestos',    color:'#4a9eff',icon:'📋'},
   {key:'proyectos',      name:'Proyectos',        color:'#9b7fe8',icon:'📐'},

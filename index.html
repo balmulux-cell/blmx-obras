@@ -1469,7 +1469,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.2.3'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.2.4'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -1508,7 +1508,24 @@ async function loadDB() {
     if (projects) DB.projects = projects;
 
     const snap2 = await DB_REF.child('trabajadores').once('value');
-    if (snap2.val()) DB.trabajadores = Object.values(snap2.val());
+    if (snap2.val()) {
+      const allTrabs = Object.values(snap2.val());
+      // Deduplicar por nombre: si hay dos con el mismo nombre, conservar el de mayor rol
+      const rolPrio = { admin:4, oficina:3, jefe:2, operario:1 };
+      const byNombre = {};
+      allTrabs.forEach(t => {
+        const n = t.nombre?.trim().toLowerCase();
+        if (!n) return;
+        if (!byNombre[n] || (rolPrio[t.rol]||0) > (rolPrio[byNombre[n].rol]||0)) byNombre[n] = t;
+      });
+      DB.trabajadores = Object.values(byNombre);
+      // Limpiar duplicados de Firebase
+      const toDelete = allTrabs.filter(t => {
+        const n = t.nombre?.trim().toLowerCase();
+        return byNombre[n] && byNombre[n].id !== t.id;
+      });
+      toDelete.forEach(t => DB_REF.child('trabajadores/' + t.id).remove());
+    }
 
     const snap3 = await DB_REF.child('jornadas').once('value');
     if (snap3.val()) DB.jornadas = Object.values(snap3.val());

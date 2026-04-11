@@ -953,7 +953,9 @@ function renderControl(c){
   users.forEach(u=>{
     const ut=tasks.filter(t=>t.asignado===u.key&&t.estado!=='hecho'&&isVisible(t));
     const tm=ut.reduce((s,t)=>s+(t.mins||0),0);
-    h+=`<div class="sc" style="border-top:2px solid ${u.color}">
+    const revokeBtn = (isRealAdmin() && !u.admin) ? `<button onclick="revocarAcceso('${u.key}')" style="position:absolute;top:8px;right:8px;background:rgba(255,92,106,.1);border:1px solid rgba(255,92,106,.3);color:#ff5c6a;border-radius:4px;font-size:10px;padding:2px 6px;cursor:pointer;font-family:Barlow,sans-serif">✕ Revocar</button>` : '';
+    h+=`<div class="sc" style="border-top:2px solid ${u.color};position:relative">
+      ${revokeBtn}
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">${avHtml(u.key,28)}<span style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700">${u.name}</span></div>
       <div class="sval" style="color:${u.color};font-size:26px">${ut.length}</div>
       <div class="ssub">${minsToLabel(tm)} estimados</div></div>`;
@@ -2400,6 +2402,17 @@ function saveUser(){
   toast(`Acceso concedido a ${appUser.name}`);
   renderSidebar();
 }
+
+function revocarAcceso(key){
+  const u = users.find(x => x.key === key);
+  if (!u) return;
+  if (u.admin) { toast('No se puede revocar el acceso al Admin', 'err'); return; }
+  if (!confirm(`¿Revocar acceso de ${u.name}? Esta accion no se puede deshacer.`)) return;
+  users = users.filter(x => x.key !== key);
+  fbSaveUsers();
+  toast(`Acceso revocado: ${u.name}`);
+  renderSidebar();
+}
 function pickCol(el,type){
   const sel=type==='cat'?'#cat-colors .coldot':'#user-colors .coldot';
   document.querySelectorAll(sel).forEach(d=>d.classList.remove('sel'));
@@ -2480,7 +2493,14 @@ async function initFromFirebase() {
   const usersSnap = await OT_DB.child('users').once('value');
   const savedUsers = usersSnap.val();
   if (savedUsers && Array.isArray(savedUsers) && savedUsers.length > 0) {
-    users = savedUsers;
+    // Filtrar usuarios válidos: solo los que tienen key con '_' (generados desde nombre real)
+    // Esto elimina los hardcodeados antiguos ('alexandra', 'lucia', 'marta')
+    const validUsers = savedUsers.filter(u => u.key && u.key.includes('_'));
+    users = validUsers;
+    // Si los datos tenían hardcodeados, limpiar y guardar versión limpia
+    if (validUsers.length !== savedUsers.length) {
+      OT_DB.child('users').set(validUsers);
+    }
   }
 
   // Asegurar admin (rol admin en BLMX) siempre presente

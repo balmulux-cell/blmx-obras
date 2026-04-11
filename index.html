@@ -306,6 +306,27 @@ tr:hover td{background:var(--s1)!important}
 .foto-thumb{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:var(--s2)}
 .foto-wrap{position:relative}
 .foto-del{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+
+/* ── ADJUNTOS ── */
+.adjuntos-zona{margin-top:10px;border:1px dashed var(--border2);border-radius:8px;padding:10px;background:var(--s2)}
+.adjuntos-zona-label{font-size:11px;color:var(--text3);text-align:center;cursor:pointer;padding:6px;display:flex;align-items:center;justify-content:center;gap:6px}
+.adjuntos-zona-label:hover{color:var(--accent)}
+.adjuntos-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.adjunto-thumb{position:relative;width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid var(--border);cursor:pointer;flex-shrink:0}
+.adjunto-thumb img{width:100%;height:100%;object-fit:cover}
+.adjunto-thumb-del{position:absolute;top:2px;right:2px;background:rgba(255,77,77,.85);color:#fff;border:none;border-radius:3px;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.adjunto-pdf{width:80px;height:80px;border-radius:6px;border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;background:var(--s1);color:var(--text2);font-family:Inter,sans-serif;font-size:10px;text-align:center;padding:4px;flex-shrink:0}
+/* ── EDITOR ANOTACION ── */
+.anotador-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:10000;flex-direction:column}
+.anotador-overlay.open{display:flex}
+.anotador-topbar{background:#1a1a2e;border-bottom:1px solid #333;padding:8px 12px;display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap}
+.anotador-canvas-wrap{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:12px}
+.anotador-canvas-wrap canvas{touch-action:none;border:2px solid #444;border-radius:4px;cursor:crosshair;max-width:100%}
+.anotool{padding:5px 9px;border-radius:5px;border:1px solid #444;background:transparent;color:#ccc;font-size:11px;cursor:pointer;font-family:Inter,sans-serif;white-space:nowrap}
+.anotool.active{background:#f0a500;color:#000;border-color:#f0a500}
+.anocol{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex-shrink:0}
+.anocol.active{border-color:#fff;box-shadow:0 0 0 1px #000}
+
 </style>
 </head>
 <body>
@@ -720,6 +741,12 @@ tr:hover td{background:var(--s1)!important}
             <div class="fg" style="max-width:100px"><label>Prioridad</label><select id="tPrio"><option value="normal">Normal</option><option value="alta">🔴 Alta</option><option value="baja">⚪ Baja</option></select></div>
             <div class="fg" style="max-width:130px"><label>Fecha límite</label><input type="date" id="tFecha"></div>
           </div>
+          <!-- Adjuntos tarea -->
+          <div class="adjuntos-zona" id="adjTareaZona" style="margin-top:8px;margin-bottom:8px">
+            <div class="adjuntos-zona-label" onclick="abrirAdjunto('tarea')">📎 Adjuntar foto o PDF &nbsp;<span style="font-size:10px;color:var(--text3)">(o pega con Ctrl+V)</span></div>
+            <input type="file" id="adjTareaInput" multiple accept="image/*,application/pdf" style="display:none" onchange="procesarAdjuntos(this.files,'tarea')">
+            <div class="adjuntos-grid" id="adjTareaGrid"></div>
+          </div>
           <div style="display:flex;justify-content:flex-end"><button class="btn btn-primary" onclick="btnGuardar(this, saveTarea)">+ Añadir</button></div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
@@ -745,7 +772,13 @@ tr:hover td{background:var(--s1)!important}
             <div class="fg" style="max-width:140px"><label>Quién consulta</label><input type="text" id="cQuien" placeholder="Nombre"></div>
             <div class="fg" style="max-width:120px"><label>Prioridad</label><select id="cPrio"><option value="normal">Normal</option><option value="urgente">🔴 Urgente</option></select></div>
           </div>
-          <div style="display:flex;justify-content:flex-end"><button class="btn btn-primary" onclick="btnGuardar(this, saveConsulta)">+ Registrar</button></div>
+          <!-- Adjuntos consulta -->
+          <div class="adjuntos-zona" id="adjConsultaZona">
+            <div class="adjuntos-zona-label" onclick="abrirAdjunto('consulta')">📎 Adjuntar foto o PDF &nbsp;<span style="font-size:10px;color:var(--text3)">(o pega con Ctrl+V)</span></div>
+            <input type="file" id="adjConsultaInput" multiple accept="image/*,application/pdf" style="display:none" onchange="procesarAdjuntos(this.files,'consulta')">
+            <div class="adjuntos-grid" id="adjConsultaGrid"></div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn btn-primary" onclick="btnGuardar(this, saveConsulta)">+ Registrar</button></div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
           <div class="stitle" style="margin:0"><div class="stitle-bar"></div>Consultas</div>
@@ -775,6 +808,12 @@ tr:hover td{background:var(--s1)!important}
             <label class="entrega-opt"><input type="radio" name="pedEntrega" value="nave" onchange="toggleEntregaExtra()"> 🏭 Entrega en nave</label>
             <label class="entrega-opt"><input type="radio" name="pedEntrega" value="delegacion" onchange="toggleEntregaExtra()"> 🏪 Recoger en delegación<input type="text" id="pedDelegacion" placeholder="¿Cuál?" style="display:none;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-size:12px;flex:1;min-width:120px;margin-left:8px"></label>
             <label class="entrega-opt"><input type="radio" name="pedEntrega" value="otro" onchange="toggleEntregaExtra()"> 📍 Otro lugar<input type="text" id="pedOtroLugar" placeholder="Indica el lugar..." style="display:none;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:5px 8px;font-size:12px;flex:1;min-width:120px;margin-left:8px"></label>
+          </div>
+          <!-- Adjuntos pedido -->
+          <div class="adjuntos-zona" id="adjPedidoZona" style="margin-bottom:10px">
+            <div class="adjuntos-zona-label" onclick="abrirAdjunto('pedido')">📎 Adjuntar foto o PDF &nbsp;<span style="font-size:10px;color:var(--text3)">(o pega con Ctrl+V)</span></div>
+            <input type="file" id="adjPedidoInput" multiple accept="image/*,application/pdf" style="display:none" onchange="procesarAdjuntos(this.files,'pedido')">
+            <div class="adjuntos-grid" id="adjPedidoGrid"></div>
           </div>
           <button class="btn btn-primary" style="width:100%;padding:12px;font-size:13px" onclick="btnGuardar(this, savePedido)">📦 Tramitar pedido</button>
         </div>
@@ -1330,6 +1369,12 @@ tr:hover td{background:var(--s1)!important}
       <div class="fg" style="max-width:130px"><label>Fecha respuesta</label><input type="date" id="rFecha"></div>
       <div class="fg"><label>Respondió</label><input type="text" id="rQuien" placeholder="Nombre contacto"></div>
     </div>
+    <!-- Adjuntos respuesta -->
+    <div class="adjuntos-zona" id="adjRespuestaZona" style="margin-bottom:12px">
+      <div class="adjuntos-zona-label" onclick="abrirAdjunto('respuesta')">📎 Adjuntar foto o PDF &nbsp;<span style="font-size:10px;color:var(--text3)">(o pega con Ctrl+V)</span></div>
+      <input type="file" id="adjRespuestaInput" multiple accept="image/*,application/pdf" style="display:none" onchange="procesarAdjuntos(this.files,'respuesta')">
+      <div class="adjuntos-grid" id="adjRespuestaGrid"></div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('modalRespuesta')">Cancelar</button>
       <button class="btn btn-primary" onclick="btnGuardar(this, saveRespuesta)">✅ Guardar respuesta</button>
@@ -1469,7 +1514,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.2.4'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.2.5'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -1802,6 +1847,8 @@ function goScreen(id) {
     renderDietas();
   }
   if (id === 'screenJornada') { populateJornadaDropdowns(); poblarFiltroJornada(); renderJornadaHist(); if(currentUser) prefillNameFields(currentUser.nombre); }
+  // Limpiar adjuntos pendientes al cambiar de panel
+  if (typeof limpiarAdjPendientes === 'function') { ['consulta','pedido','tarea'].forEach(limpiarAdjPendientes); }
   if (id === 'screenObras') {
     // Restore last obra for this user
     const userKey = currentUser ? 'obra_activeId_' + currentUser.id : 'obra_activeId';
@@ -2259,14 +2306,17 @@ async function deleteParte(id){
 // TAREAS
 // ════════════════════════════════════════════
 let filtroTarea='todas';
-function saveTarea(){
+async function saveTarea(){
   const p=activeProject();if(!p)return alert('Crea un proyecto primero');
   const desc=document.getElementById('tDesc').value.trim();if(!desc)return alert('Escribe una descripción');
   const who=document.getElementById('tWho').value.trim();
   const prio=document.getElementById('tPrio').value;
   const fecha=document.getElementById('tFecha').value;
   if(!p.tareas)p.tareas=[];
-  p.tareas.push({id:Date.now(),desc,who,prio,fecha,hecha:false,creadaEn:new Date().toISOString().split('T')[0]});
+  const id=Date.now();
+  const adjuntos=await subirAdjuntos('tarea','adjuntos/tareas/'+DB.activeId+'/'+id);
+  p.tareas.push({id,desc,who,prio,fecha,hecha:false,creadaEn:new Date().toISOString().split('T')[0],adjuntos});
+  limpiarAdjPendientes('tarea');
   saveDB();document.getElementById('tDesc').value='';renderAll();
 }
 function toggleTarea(id){
@@ -2315,6 +2365,7 @@ function renderTareas(){
       </div>
       <div class="tarea-body">
         <div class="tarea-desc">${t.desc}</div>
+        ${t.adjuntos&&t.adjuntos.length?renderAdjGuardados(t.adjuntos):''}
         <div class="tarea-meta">
           ${t.prio==='alta'?'<span class="tag-sm r">🔴 Alta</span>':''}
           ${t.who?`<span class="tag-sm">👷 ${t.who}</span>`:''}
@@ -2333,14 +2384,17 @@ function renderTareas(){
 let filtroConsulta='todas';
 let respuestaConsultaId=null;
 
-function saveConsulta(){
+async function saveConsulta(){
   const p=activeProject();if(!p)return alert('Crea un proyecto primero');
   const texto=document.getElementById('cTexto').value.trim();if(!texto)return alert('Escribe la consulta');
   const fecha=document.getElementById('cFecha').value;if(!fecha)return alert('Selecciona una fecha');
   const quien=document.getElementById('cQuien').value.trim();
   const prio=document.getElementById('cPrio').value;
   if(!p.consultas)p.consultas=[];
-  p.consultas.push({id:Date.now(),texto,fecha,quien,prio,respondida:false,respuesta:null,fechaResp:null,quienResp:null});
+  const id=Date.now();
+  const adjuntos=await subirAdjuntos('consulta','adjuntos/consultas/'+DB.activeId+'/'+id);
+  p.consultas.push({id,texto,fecha,quien,prio,respondida:false,respuesta:null,fechaResp:null,quienResp:null,adjuntos});
+  limpiarAdjPendientes('consulta');
   saveDB();document.getElementById('cTexto').value='';renderAll();
 }
 function openRespuesta(id){
@@ -2351,14 +2405,18 @@ function openRespuesta(id){
   document.getElementById('rTexto').value=c.respuesta||'';
   document.getElementById('rFecha').value=new Date().toISOString().split('T')[0];
   document.getElementById('rQuien').value=c.quienResp||'';
+  limpiarAdjPendientes('respuesta');
   openModal('modalRespuesta');
 }
 async function saveRespuesta(){
   const p=activeProject();if(!p||!respuestaConsultaId)return;
   const c=(p.consultas||[]).find(x=>x.id===respuestaConsultaId);if(!c)return;
   const texto=document.getElementById('rTexto').value.trim();if(!texto)return alert('Escribe la respuesta');
+  const adjResp=await subirAdjuntos('respuesta','adjuntos/respuestas/'+DB.activeId+'/'+respuestaConsultaId);
   c.respuesta=texto;c.fechaResp=document.getElementById('rFecha').value;
   c.quienResp=document.getElementById('rQuien').value.trim();c.respondida=true;
+  if(adjResp.length) c.adjuntosResp=adjResp;
+  limpiarAdjPendientes('respuesta');
   closeModal('modalRespuesta');await saveDB();renderAll();
 }
 async function deleteConsulta(id){
@@ -2412,7 +2470,8 @@ function renderConsultas(){
         </div>
       </div>
       <div class="card-text">${c.texto}</div>
-      ${c.respondida?`<div class="consulta-resp"><div class="consulta-resp-label">✅ Respuesta${c.fechaResp?' · '+c.fechaResp:''}${c.quienResp?' · '+c.quienResp:''}</div><div class="card-text">${c.respuesta}</div></div>`:''}
+      ${c.adjuntos&&c.adjuntos.length?renderAdjGuardados(c.adjuntos):''}
+      ${c.respondida?`<div class="consulta-resp"><div class="consulta-resp-label">✅ Respuesta${c.fechaResp?' · '+c.fechaResp:''}${c.quienResp?' · '+c.quienResp:''}</div><div class="card-text">${c.respuesta}</div>${c.adjuntosResp&&c.adjuntosResp.length?renderAdjGuardados(c.adjuntosResp):''}</div>`:''}
     </div>`;
   }).join('');
 }
@@ -2518,15 +2577,18 @@ async function savePedido() {
   let lugarTexto = { obra:'Entrega en obra', nave:'Entrega en nave', delegacion:`Recoger en delegación: ${delegacion||'?'}`, otro:`Otro lugar: ${otroLugar||'?'}` }[entrega];
 
   if (!p.pedidos) p.pedidos = [];
+  const _pedId = Date.now();
+  const adjuntos = await subirAdjuntos('pedido', 'adjuntos/pedidos/' + DB.activeId + '/' + _pedId);
   const pedido = {
-    id: Date.now(), fecha, operario, lista, fechaEntrega: fechaEnt,
+    id: _pedId, fecha, operario, lista, fechaEntrega: fechaEnt,
     entrega, delegacion, otroLugar, lugarTexto,
-    obraNombre: p.name,
+    obraNombre: p.name, adjuntos,
     // Estados
     pedido: false, pedidoComentario: '', pedidoEn: null,
     recibido: false, recibidoEn: null,
     incidencia: false, incidenciaTexto: '', solucionado: false
   };
+  limpiarAdjPendientes('pedido');
   p.pedidos.push(pedido);
   await saveDB();
 
@@ -2680,6 +2742,7 @@ function renderPedidos() {
       <div class="pedido-section">
         <div class="pedido-section-title" style="color:var(--text3)">📦 Materiales solicitados</div>
         <div class="pedido-lista">${ped.lista}</div>
+        ${ped.adjuntos&&ped.adjuntos.length?renderAdjGuardados(ped.adjuntos):''}
       </div>
 
       <!-- Lugar entrega -->
@@ -4659,6 +4722,324 @@ async function init(){
 init();
 
 // ════════════════════════════════════════════
+// SISTEMA DE ADJUNTOS CON ANOTACION
+// ════════════════════════════════════════════
+
+let _adjContexto = null;
+let _adjPendientes = { consulta: [], respuesta: [], pedido: [], tarea: [] };
+
+// Comprimir imagen antes de subir (max 1400px, quality 0.78)
+async function comprimirAdjunto(file, maxW, quality) {
+  maxW = maxW || 1400; quality = quality || 0.78;
+  if (file.type === 'application/pdf') return file;
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.width, h = img.height;
+      if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      c.toBlob(blob => resolve(new File([blob], file.name.replace(/[.][^.]+$/, '.jpg'), { type: 'image/jpeg' })), 'image/jpeg', quality);
+    };
+    img.src = url;
+  });
+}
+
+function _ctxCap(ctx) { return ctx.charAt(0).toUpperCase() + ctx.slice(1); }
+
+function abrirAdjunto(ctx) {
+  _adjContexto = ctx;
+  document.getElementById('adj' + _ctxCap(ctx) + 'Input').click();
+}
+
+async function procesarAdjuntos(files, ctx) {
+  for (const file of Array.from(files)) {
+    if (file.type.startsWith('image/')) {
+      await abrirAnotador(file, ctx, null);
+    } else if (file.type === 'application/pdf') {
+      _adjPendientes[ctx].push({ tipo: 'pdf', file, nombre: file.name });
+      renderAdjGrid(ctx);
+    }
+  }
+  const inp = document.getElementById('adj' + _ctxCap(ctx) + 'Input');
+  if (inp) inp.value = '';
+}
+
+// Ctrl+V para pegar imagen directamente (PC con herramienta recortes)
+document.addEventListener('paste', async (e) => {
+  const ctx = _adjContexto || detectarCtxActivo();
+  if (!ctx) return;
+  const items = Array.from(e.clipboardData ? e.clipboardData.items : []);
+  const imgItem = items.find(i => i.type.startsWith('image/'));
+  if (!imgItem) return;
+  const file = imgItem.getAsFile();
+  if (file) await abrirAnotador(file, ctx, null);
+});
+
+function detectarCtxActivo() {
+  const map = { 'inner-consultas': 'consulta', 'inner-pedidos': 'pedido', 'inner-tareas': 'tarea' };
+  for (const [id, ctx] of Object.entries(map)) {
+    const el = document.getElementById(id);
+    if (el && el.style.display !== 'none') return ctx;
+  }
+  if (document.getElementById('modalRespuesta') && document.getElementById('modalRespuesta').classList.contains('open')) return 'respuesta';
+  return null;
+}
+
+function renderAdjGrid(ctx) {
+  const grid = document.getElementById('adj' + _ctxCap(ctx) + 'Grid');
+  if (!grid) return;
+  grid.innerHTML = _adjPendientes[ctx].map((a, i) => {
+    if (a.tipo === 'imagen') {
+      return '<div class="adjunto-thumb" title="Pulsa para reeditar">'
+        + '<img src="' + a.dataUrl + '" onclick="reabrirAnotador(' + i + ','' + ctx + '')">'
+        + '<button class="adjunto-thumb-del" onclick="event.stopPropagation();quitarAdjPendiente(' + i + ','' + ctx + '')">x</button>'
+        + '</div>';
+    } else {
+      return '<div class="adjunto-pdf" title="' + a.nombre + '">'
+        + '<span style="font-size:22px">&#x1F4C4;</span>'
+        + '<span style="word-break:break-all;font-size:9px">' + a.nombre.substring(0, 15) + '</span>'
+        + '<button class="adjunto-thumb-del" style="position:static;margin-top:2px" onclick="quitarAdjPendiente(' + i + ','' + ctx + '')">x</button>'
+        + '</div>';
+    }
+  }).join('');
+}
+
+function quitarAdjPendiente(i, ctx) {
+  _adjPendientes[ctx].splice(i, 1);
+  renderAdjGrid(ctx);
+}
+
+function limpiarAdjPendientes(ctx) {
+  _adjPendientes[ctx] = [];
+  renderAdjGrid(ctx);
+}
+
+// Subir adjuntos pendientes a R2 y devolver array de {tipo,url,nombre}
+async function subirAdjuntos(ctx, carpeta) {
+  const lista = _adjPendientes[ctx];
+  if (!lista.length) return [];
+  const urls = [];
+  for (const a of lista) {
+    try {
+      let file;
+      if (a.tipo === 'imagen') {
+        const res = await fetch(a.dataUrl);
+        const blob = await res.blob();
+        const raw = new File([blob], 'anotado.jpg', { type: 'image/jpeg' });
+        file = await comprimirAdjunto(raw, 1400, 0.78);
+      } else {
+        file = a.file;
+      }
+      const nombre = Date.now() + '_' + Math.random().toString(36).slice(2,6) + (a.tipo === 'pdf' ? '.pdf' : '.jpg');
+      const r2key = carpeta + '/' + nombre;
+      const wurl = 'https://blmx-drive-worker.balmulux.workers.dev/upload';
+      const fd = new FormData(); fd.append('file', file); fd.append('key', r2key);
+      const resp = await fetch(wurl, { method: 'POST', body: fd });
+      if (resp.ok) {
+        const data = await resp.json();
+        urls.push({ tipo: a.tipo, url: data.url || data.publicUrl || (wurl.replace('/upload','') + '/' + r2key), nombre: a.nombre || nombre });
+      }
+    } catch(e) { console.warn('Error subiendo adjunto:', e); }
+  }
+  return urls;
+}
+
+// Render de adjuntos ya guardados en una tarjeta
+function renderAdjGuardados(adjuntos) {
+  if (!adjuntos || !adjuntos.length) return '';
+  return '<div class="adjuntos-grid" style="margin-top:8px">' + adjuntos.map(a => {
+    if (a.tipo === 'pdf') {
+      return '<div class="adjunto-pdf" onclick="window.open('' + a.url + '','_blank')" title="' + (a.nombre||'PDF') + '">'
+        + '<span style="font-size:22px">&#x1F4C4;</span>'
+        + '<span style="word-break:break-all;font-size:9px">' + (a.nombre||'PDF').substring(0,15) + '</span>'
+        + '</div>';
+    } else {
+      return '<div class="adjunto-thumb" onclick="window.open('' + a.url + '','_blank')">'
+        + '<img src="' + a.url + '">'
+        + '</div>';
+    }
+  }).join('') + '</div>';
+}
+
+// ════════════════════════════════════════════
+// EDITOR DE ANOTACION (canvas)
+// ════════════════════════════════════════════
+
+let _anotTool = 'lapiz';
+let _anotColor = '#ff4444';
+let _anotCanvas = null;
+let _anotCtx = null;
+let _anotHistory = [];
+let _anotDrawing = false;
+let _anotStart = { x:0, y:0 };
+let _anotSnapshot = null;
+let _anotCallbackCtx = null;
+let _anotCallbackIdx = null;
+
+function setAnotTool(t) {
+  _anotTool = t;
+  document.querySelectorAll('.anotool').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('anotTool-' + t);
+  if (btn) btn.classList.add('active');
+  if (_anotCanvas) _anotCanvas.style.cursor = t === 'texto' ? 'text' : (t === 'borrar' ? 'cell' : 'crosshair');
+}
+
+function setAnotColor(el) {
+  _anotColor = el.dataset.color;
+  document.querySelectorAll('.anocol').forEach(d => d.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function anotUndo() {
+  if (_anotHistory.length <= 1) return;
+  _anotHistory.pop();
+  _anotCtx.putImageData(_anotHistory[_anotHistory.length - 1], 0, 0);
+}
+
+async function abrirAnotador(file, ctx, idx) {
+  _anotCallbackCtx = ctx;
+  _anotCallbackIdx = idx;
+  _anotHistory = [];
+  _anotTool = 'lapiz';
+  const overlay = document.getElementById('anotadorOverlay');
+  overlay.classList.add('open');
+  _anotCanvas = document.getElementById('anotCanvas');
+  _anotCtx = _anotCanvas.getContext('2d');
+
+  // Comprimir suavemente antes de editar para no perder calidad de trabajo
+  const compressed = await comprimirAdjunto(file, 1600, 0.92);
+  const url = URL.createObjectURL(compressed);
+  const img = new Image();
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    let w = img.width, h = img.height;
+    const maxW = Math.min(window.innerWidth - 48, 1400);
+    const maxH = window.innerHeight - 140;
+    if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+    if (h > maxH) { w = Math.round(w * maxH / h); h = maxH; }
+    _anotCanvas.width = w; _anotCanvas.height = h;
+    _anotCtx.drawImage(img, 0, 0, w, h);
+    _anotHistory.push(_anotCtx.getImageData(0, 0, w, h));
+    _initAnotEvents();
+  };
+  img.src = url;
+}
+
+async function reabrirAnotador(idx, ctx) {
+  const a = _adjPendientes[ctx][idx];
+  if (!a || a.tipo !== 'imagen') return;
+  const res = await fetch(a.dataUrl);
+  const blob = await res.blob();
+  const file = new File([blob], 'editar.jpg', { type: 'image/jpeg' });
+  await abrirAnotador(file, ctx, idx);
+}
+
+function _getPos(e) {
+  const rect = _anotCanvas.getBoundingClientRect();
+  const sx = _anotCanvas.width / rect.width;
+  const sy = _anotCanvas.height / rect.height;
+  const src = e.touches ? e.touches[0] : e;
+  return { x: (src.clientX - rect.left) * sx, y: (src.clientY - rect.top) * sy };
+}
+
+function _initAnotEvents() {
+  const c = _anotCanvas;
+  const start = (e) => {
+    e.preventDefault();
+    _anotDrawing = true;
+    const p = _getPos(e);
+    _anotStart = p;
+    const grosor = parseInt(document.getElementById('anotGrosor').value) || 4;
+    _anotSnapshot = _anotCtx.getImageData(0, 0, c.width, c.height);
+    if (_anotTool === 'lapiz' || _anotTool === 'borrar') {
+      _anotCtx.beginPath(); _anotCtx.moveTo(p.x, p.y);
+    }
+    if (_anotTool === 'texto') {
+      _anotDrawing = false;
+      const txt = prompt('Texto a escribir:');
+      if (txt) {
+        _anotCtx.font = 'bold ' + (grosor * 5 + 12) + 'px Inter, Arial, sans-serif';
+        _anotCtx.fillStyle = _anotColor;
+        _anotCtx.strokeStyle = 'rgba(0,0,0,0.6)';
+        _anotCtx.lineWidth = 2;
+        _anotCtx.strokeText(txt, p.x, p.y);
+        _anotCtx.fillText(txt, p.x, p.y);
+        _anotHistory.push(_anotCtx.getImageData(0, 0, c.width, c.height));
+      }
+    }
+  };
+  const move = (e) => {
+    if (!_anotDrawing) return;
+    e.preventDefault();
+    const p = _getPos(e);
+    const grosor = parseInt(document.getElementById('anotGrosor').value) || 4;
+    _anotCtx.strokeStyle = _anotColor;
+    _anotCtx.lineWidth = grosor;
+    _anotCtx.lineCap = 'round'; _anotCtx.lineJoin = 'round';
+    if (_anotTool === 'lapiz') {
+      _anotCtx.lineTo(p.x, p.y); _anotCtx.stroke();
+    } else if (_anotTool === 'borrar') {
+      _anotCtx.globalCompositeOperation = 'destination-out';
+      _anotCtx.lineWidth = grosor * 4;
+      _anotCtx.lineTo(p.x, p.y); _anotCtx.stroke();
+      _anotCtx.globalCompositeOperation = 'source-over';
+    } else if (_anotTool === 'flecha' || _anotTool === 'rect') {
+      _anotCtx.putImageData(_anotSnapshot, 0, 0);
+      _anotCtx.beginPath();
+      if (_anotTool === 'rect') {
+        _anotCtx.strokeRect(_anotStart.x, _anotStart.y, p.x - _anotStart.x, p.y - _anotStart.y);
+      } else {
+        _dibujarFlecha(_anotStart.x, _anotStart.y, p.x, p.y, grosor);
+      }
+    }
+  };
+  const end = (e) => {
+    if (!_anotDrawing) return;
+    _anotDrawing = false;
+    _anotCtx.closePath();
+    _anotHistory.push(_anotCtx.getImageData(0, 0, c.width, c.height));
+  };
+  c.addEventListener('mousedown', start); c.addEventListener('mousemove', move); c.addEventListener('mouseup', end);
+  c.addEventListener('touchstart', start, { passive: false }); c.addEventListener('touchmove', move, { passive: false }); c.addEventListener('touchend', end);
+}
+
+function _dibujarFlecha(x1, y1, x2, y2, grosor) {
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const len = 12 + grosor * 3;
+  _anotCtx.moveTo(x1, y1); _anotCtx.lineTo(x2, y2); _anotCtx.stroke();
+  _anotCtx.beginPath();
+  _anotCtx.fillStyle = _anotColor;
+  _anotCtx.moveTo(x2, y2);
+  _anotCtx.lineTo(x2 - len * Math.cos(angle - Math.PI/6), y2 - len * Math.sin(angle - Math.PI/6));
+  _anotCtx.lineTo(x2 - len * Math.cos(angle + Math.PI/6), y2 - len * Math.sin(angle + Math.PI/6));
+  _anotCtx.closePath(); _anotCtx.fill();
+}
+
+function cerrarAnotador() {
+  document.getElementById('anotadorOverlay').classList.remove('open');
+  _anotCallbackIdx = null;
+}
+
+function guardarAnotacion() {
+  // Exportar con compresión final (0.82 — buen balance calidad/peso)
+  const dataUrl = _anotCanvas.toDataURL('image/jpeg', 0.82);
+  const ctx = _anotCallbackCtx;
+  const entry = { tipo: 'imagen', dataUrl, nombre: 'imagen_anotada.jpg' };
+  if (_anotCallbackIdx !== null) {
+    _adjPendientes[ctx][_anotCallbackIdx] = entry;
+  } else {
+    _adjPendientes[ctx].push(entry);
+  }
+  renderAdjGrid(ctx);
+  cerrarAnotador();
+}
+
+
+// ════════════════════════════════════════════
 // ACOPIO DE MATERIALES
 // ════════════════════════════════════════════
 
@@ -5624,6 +6005,44 @@ if ('serviceWorker' in navigator) {
       <button class="btn btn-green" id="btnFinalizarIncidencia" onclick="btnGuardar(this, finalizarIncidencia)">✅ Finalizado</button>
       <button class="btn btn-danger" id="btnDeshacerFinIncidencia" style="display:none" onclick="btnGuardar(this, deshacerFinalizarIncidencia)">↩ Reabrir</button>
     </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     EDITOR DE ANOTACIÓN
+══════════════════════════════════════ -->
+<div class="anotador-overlay" id="anotadorOverlay">
+  <div class="anotador-topbar">
+    <span style="color:#f0a500;font-weight:700;font-size:13px;margin-right:4px">✏️ Anotar imagen</span>
+    <!-- Herramientas -->
+    <button class="anotador-tool active" id="anotTool-lapiz" onclick="setAnotTool('lapiz')">✏️ Lápiz</button>
+    <button class="anotador-tool" id="anotTool-flecha" onclick="setAnotTool('flecha')">➜ Flecha</button>
+    <button class="anotador-tool" id="anotTool-rect" onclick="setAnotTool('rect')">▭ Rectángulo</button>
+    <button class="anotador-tool" id="anotTool-texto" onclick="setAnotTool('texto')">T Texto</button>
+    <button class="anotador-tool" id="anotTool-borrar" onclick="setAnotTool('borrar')">⌫ Borrar</button>
+    <!-- Colores -->
+    <div style="display:flex;gap:5px;align-items:center;margin-left:6px">
+      <div class="anotador-color active" style="background:#ff4444" data-color="#ff4444" onclick="setAnotColor(this)"></div>
+      <div class="anotador-color" style="background:#f0a500" data-color="#f0a500" onclick="setAnotColor(this)"></div>
+      <div class="anotador-color" style="background:#2ecc8a" data-color="#2ecc8a" onclick="setAnotColor(this)"></div>
+      <div class="anotador-color" style="background:#4a9ef5" data-color="#4a9ef5" onclick="setAnotColor(this)"></div>
+      <div class="anotador-color" style="background:#ffffff" data-color="#ffffff" onclick="setAnotColor(this)"></div>
+      <div class="anotador-color" style="background:#000000;border:1px solid #666" data-color="#000000" onclick="setAnotColor(this)"></div>
+    </div>
+    <!-- Grosor -->
+    <select id="anotGrosor" style="background:#222;border:1px solid #444;color:#ccc;border-radius:4px;padding:4px 6px;font-size:12px">
+      <option value="2">Fino</option>
+      <option value="4" selected>Normal</option>
+      <option value="8">Grueso</option>
+    </select>
+    <button class="anotador-tool" onclick="anotUndo()" style="margin-left:4px">↩ Deshacer</button>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <button class="anotador-tool" onclick="cerrarAnotador()">Cancelar</button>
+      <button class="anotador-tool active" onclick="guardarAnotacion()" style="background:#2ecc8a;border-color:#2ecc8a;color:#000">✅ Guardar</button>
+    </div>
+  </div>
+  <div class="anotador-canvas-wrap">
+    <canvas id="anotCanvas"></canvas>
   </div>
 </div>
 </body>

@@ -327,6 +327,17 @@ tr:hover td{background:var(--s1)!important}
 .anocol{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;flex-shrink:0}
 .anocol.active{border-color:#fff;box-shadow:0 0 0 1px #000}
 
+/* ── CARPETAS PLANOS ── */
+.plano-carpeta-card{background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:11px 14px;margin-bottom:6px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s}
+.plano-carpeta-card:hover{border-color:var(--accent)}
+.plano-carpeta-name{flex:1;font-size:13px;font-weight:600;color:var(--text)}
+.plano-carpeta-meta{font-size:10px;color:var(--text3);margin-top:2px}
+.plano-breadcrumb{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.plano-breadcrumb span{font-size:12px;color:var(--text3);cursor:pointer}
+.plano-breadcrumb span:hover{color:var(--accent)}
+.plano-breadcrumb .sep{color:var(--border2);cursor:default}
+.planos-sort-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+
 </style>
 </head>
 <body>
@@ -1049,15 +1060,27 @@ tr:hover td{background:var(--s1)!important}
 
       <!-- PLANOS -->
       <div class="panel-inner" id="inner-planos" style="display:none">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <!-- Barra superior -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
           <div id="driveStatusPlanos" class="drive-status" style="flex:1;margin-bottom:0">⚪ Conectando...</div>
+          <button class="btn btn-ghost btn-sm" id="btnNuevaCarpetaPlanos" onclick="pedirNuevaCarpetaPlanos()">📁 Nueva carpeta</button>
           <button class="btn btn-ghost btn-sm" onclick="descargarZipCarpeta('planos')">📦 Descargar todo</button>
         </div>
-        <div class="upload-zone" onclick="document.getElementById('planosFileInput').click()">
-          <input type="file" id="planosFileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.dwg,.dxf" style="display:none" onchange="uploadPlanos(this.files)">
-          <div class="upload-zone-icon">🗺️</div>
-          <div class="upload-zone-label">Subir planos</div>
-          <div class="upload-zone-sub">PDF, JPG, PNG, DWG, DXF · Puedes subir varios a la vez</div>
+        <!-- Breadcrumb de navegación -->
+        <div class="plano-breadcrumb" id="planosBreadcrumb"></div>
+        <!-- Ordenación -->
+        <div class="planos-sort-bar">
+          <span style="font-size:11px;color:var(--text3)">Ordenar:</span>
+          <button class="btn btn-ghost btn-xs active" id="planosSortBtn" onclick="togglePlanosSort()">↓ Z→A</button>
+        </div>
+        <!-- Zona de subida (visible solo dentro de carpeta) -->
+        <div id="planosUploadZone" style="display:none">
+          <div class="upload-zone" onclick="document.getElementById('planosFileInput').click()" style="margin-bottom:8px">
+            <input type="file" id="planosFileInput" multiple accept=".pdf,.jpg,.jpeg,.png,.dwg,.dxf" style="display:none" onchange="uploadPlanos(this.files)">
+            <div class="upload-zone-icon">🗺️</div>
+            <div class="upload-zone-label">Subir planos en esta carpeta</div>
+            <div class="upload-zone-sub">PDF, JPG, PNG, DWG, DXF · Puedes subir varios a la vez</div>
+          </div>
         </div>
         <div id="planosList"></div>
       </div>
@@ -1514,7 +1537,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.2.8'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.2.9'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -1992,7 +2015,7 @@ function showObraPanel(name) {
   if (name === 'admin') renderTrabajadores();
   if (name === 'pedidos') populatePedidoOperario();
   if (name === 'ficha') renderFichaPanel();
-  if (name === 'planos') renderPlanos();
+  if (name === 'planos') { _planosCurrentFolder = null; renderPlanos(); }
   if (name === 'fotos') renderFotos();
   if (name === 'acopio') renderAcopio();
   if (name === 'avance') renderAvance();
@@ -4316,72 +4339,306 @@ function exportarDietasExcel() {
 }
 
 // ════════════════════════════════════════════
-// PLANOS
+// PLANOS CON CARPETAS
 // ════════════════════════════════════════════
-let planosRootFolderId = null;
+let _planosCurrentFolder = null;  // null = raíz obra, string = subcarpeta actual
+let _planosSortDesc = true;       // true = Z→A (mayor a menor), false = A→Z
+
+function _planosFolderPath() {
+  const p = activeProject(); if (!p) return null;
+  const obraSafe = sanitizeR2Name(p.name);
+  const base = 'PLANOS/' + obraSafe;
+  return _planosCurrentFolder ? base + '/' + _planosCurrentFolder : base;
+}
+
+function togglePlanosSort() {
+  _planosSortDesc = !_planosSortDesc;
+  const btn = document.getElementById('planosSortBtn');
+  if (btn) btn.textContent = _planosSortDesc ? '↓ Z→A' : '↑ A→Z';
+  renderPlanos();
+}
+
+function pedirNuevaCarpetaPlanos() {
+  const nombre = prompt('Nombre de la nueva carpeta:');
+  if (!nombre || !nombre.trim()) return;
+  const safe = sanitizeR2Name(nombre.trim());
+  if (!safe) return alert('Nombre no válido');
+  // Crear carpeta subiendo un archivo marcador vacío
+  const marker = new File([''], '.keep', { type: 'text/plain' });
+  const path = _planosFolderPath();
+  if (!path) return;
+  driveUploadFile(marker, path + '/' + safe).then(() => {
+    renderPlanos();
+  }).catch(e => alert('Error al crear carpeta: ' + e.message));
+}
 
 async function uploadPlanos(files) {
   if (!files || files.length === 0) return;
-  const p = activeProject(); if (!p) return alert('Selecciona una obra primero');
+  const path = _planosFolderPath();
+  if (!path) return alert('Selecciona una obra primero');
+  if (!_planosCurrentFolder) return alert('Entra en una carpeta primero para subir planos');
+  const statusEl = document.getElementById('driveStatusPlanos');
   try {
-    await requireDriveAuth();
-    const rootId = await driveGetOrCreateFolder('PLANOS');
-    const obraId = await driveGetOrCreateFolder(p.name.toUpperCase(), rootId);
     let uploaded = 0;
     for (const file of files) {
-      await driveUploadFile(file, obraId);
+      await driveUploadFile(file, path);
       uploaded++;
-      document.getElementById('driveStatusPlanos').textContent = `⬆️ Subiendo ${uploaded}/${files.length}...`;
+      statusEl.textContent = '⬆️ Subiendo ' + uploaded + '/' + files.length + '...';
     }
-    document.getElementById('driveStatusPlanos').textContent = `🟢 ${uploaded} archivo(s) subido(s)`;
+    statusEl.textContent = '🟢 ' + uploaded + ' archivo(s) subido(s)';
     renderPlanos();
   } catch(e) {
     console.error('Error subiendo planos:', e);
-    document.getElementById('driveStatusPlanos').textContent = '🔴 Error al subir. Vuelve a intentarlo.';
+    statusEl.textContent = '🔴 Error al subir. Vuelve a intentarlo.';
   }
 }
 
 async function renderPlanos() {
   const list = document.getElementById('planosList'); if (!list) return;
   const p = activeProject(); if (!p) return;
+  const statusEl = document.getElementById('driveStatusPlanos');
+  const bcEl = document.getElementById('planosBreadcrumb');
+  const uploadZone = document.getElementById('planosUploadZone');
+
   try {
-    await requireDriveAuth();
-    list.innerHTML = '<div class="empty">Cargando planos...</div>';
-    const rootId = await driveGetOrCreateFolder('PLANOS');
-    const obraId = await driveGetOrCreateFolder(p.name.toUpperCase(), rootId);
-    const files = await driveListFiles(obraId);
-    if (files.length === 0) { list.innerHTML='<div class="empty">Sin planos subidos aún.</div>'; return; }
-    const sub = document.getElementById('obraNavPlanosSub');
-    if (sub) sub.textContent = `${files.length} archivo(s)`;
-    list.innerHTML = files.map(f => {
-      const ext = (f.name || '').split('.').pop().toLowerCase();
-      const icon = ext === 'pdf' ? '📄' : ['jpg','jpeg','png','gif','webp'].includes(ext) ? '🖼️' : '📐';
-      const size = f.size ? (parseInt(f.size)/1024).toFixed(0) + ' KB' : '';
-      const fecha = f.uploaded ? new Date(f.uploaded).toLocaleDateString('es-ES') : '';
-      const safeName = (f.name||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      return `<div class="plano-card">
-        <div class="plano-icon">${icon}</div>
-        <div style="flex:1;min-width:0">
-          <div class="plano-name">${f.name}</div>
-          <div class="plano-meta">${size}${fecha ? ' · ' + fecha : ''}</div>
-        </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          <button class="btn btn-ghost btn-xs" onclick="window.open('${f.webViewLink}','_blank')">👁️ Ver</button>
-          <button class="btn btn-danger btn-xs" onclick="confirmarBorrarPlano('${f.id}','${safeName}')">✕</button>
-        </div>
-      </div>`;
-    }).join('');
+    list.innerHTML = '<div class="empty">Cargando...</div>';
+    const path = _planosFolderPath();
+
+    // Actualizar breadcrumb
+    if (bcEl) {
+      if (!_planosCurrentFolder) {
+        bcEl.innerHTML = '<span style="color:var(--accent);font-weight:600">📁 Planos</span>';
+        if (uploadZone) uploadZone.style.display = 'none';
+      } else {
+        bcEl.innerHTML =
+          '<span onclick="volverRaizPlanos()">📁 Planos</span>' +
+          '<span class="sep">/</span>' +
+          '<span style="color:var(--accent);font-weight:600">' + _planosCurrentFolder + '</span>';
+        if (uploadZone) uploadZone.style.display = 'block';
+      }
+    }
+
+    const allFiles = await driveListFiles(path);
+
+    if (!_planosCurrentFolder) {
+      // Vista de raíz: mostrar carpetas agrupando por prefijo de subcarpeta
+      const carpetas = {};
+      allFiles.forEach(f => {
+        // Los archivos en subcarpetas tienen key como PLANOS/OBRA/CARPETA/archivo
+        // driveListFiles devuelve archivos directos del path — necesitamos listar subcarpetas
+        // Las subcarpetas aparecen porque subimos un .keep en ellas
+        const parts = (f.id || '').replace(path + '/', '').split('/');
+        if (parts.length >= 2) {
+          const carpetaNombre = parts[0];
+          if (!carpetas[carpetaNombre]) carpetas[carpetaNombre] = { count: 0, lastFile: f };
+          if (f.name !== '.keep') carpetas[carpetaNombre].count++;
+        }
+      });
+
+      // También buscar subcarpetas listando nivel siguiente
+      // Usamos workerCall list-files con el path actual y detectamos subcarpetas por prefijo
+      const carpetaNames = [...new Set(
+        allFiles
+          .map(f => {
+            const rel = (f.id || '').replace(path + '/', '');
+            const parts = rel.split('/');
+            return parts.length >= 2 ? parts[0] : null;
+          })
+          .filter(Boolean)
+      )];
+
+      // Ordenar carpetas: desc (Z→A) o asc (A→Z)
+      carpetaNames.sort((a, b) => _planosSortDesc ? b.localeCompare(a) : a.localeCompare(b));
+
+      // Archivos sueltos en raíz (sin carpeta)
+      const archivosSueltos = allFiles.filter(f => {
+        const rel = (f.id || '').replace(path + '/', '');
+        return !rel.includes('/');
+      }).filter(f => f.name !== '.keep');
+
+      if (carpetaNames.length === 0 && archivosSueltos.length === 0) {
+        list.innerHTML = '<div class="empty">Sin carpetas ni planos aún. Crea una carpeta para empezar.</div>';
+        if (statusEl) statusEl.textContent = '🟢 Almacenamiento conectado';
+        return;
+      }
+
+      let html = '';
+
+      // Carpetas
+      carpetaNames.forEach(nombre => {
+        const count = allFiles.filter(f => {
+          const rel = (f.id || '').replace(path + '/', '');
+          return rel.startsWith(nombre + '/') && f.name !== '.keep';
+        }).length;
+        const safeName = nombre.replace(/'/g, "\\'");
+        html += '<div class="plano-carpeta-card" onclick="abrirCarpetaPlanos(\'' + safeName + '\')">'
+          + '<span style="font-size:22px">\uD83D\uDCC1</span>'
+          + '<div style="flex:1;min-width:0">'
+          + '<div class="plano-carpeta-name">' + nombre + '</div>'
+          + '<div class="plano-carpeta-meta">' + count + ' archivo(s)</div>'
+          + '</div>'
+          + (isAdmin ? '<button class="btn btn-danger btn-xs" onclick="event.stopPropagation();confirmarBorrarCarpeta(\'' + safeName + '\')">✕</button>' : '')
+          + '</div>';
+      });
+
+      // Archivos sueltos si los hay
+      if (archivosSueltos.length > 0) {
+        html += '<div style="font-size:11px;color:var(--text3);margin:10px 0 6px;text-transform:uppercase;letter-spacing:.1px">Archivos sin carpeta</div>';
+        archivosSueltos.forEach(f => { html += _planoFileHtml(f, path, true); });
+      }
+
+      list.innerHTML = html;
+      if (statusEl) statusEl.textContent = '🟢 ' + carpetaNames.length + ' carpeta(s)';
+
+    } else {
+      // Vista dentro de carpeta: mostrar archivos
+      const archivos = allFiles.filter(f => f.name !== '.keep');
+
+      // Ordenar por nombre
+      archivos.sort((a, b) => _planosSortDesc ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name));
+
+      if (archivos.length === 0) {
+        list.innerHTML = '<div class="empty">Carpeta vacía. Sube planos con el botón de arriba.</div>';
+      } else {
+        list.innerHTML = archivos.map(f => _planoFileHtml(f, path)).join('');
+      }
+      if (statusEl) statusEl.textContent = '🟢 ' + archivos.length + ' archivo(s)';
+      const sub = document.getElementById('obraNavPlanosSub');
+      if (sub) sub.textContent = archivos.length + ' archivo(s)';
+    }
+
   } catch(e) {
-    list.innerHTML = '<div class="empty">Error al cargar planos. Comprueba la conexión.</div>';
+    console.error('Error cargando planos:', e);
+    list.innerHTML = '<div class="empty">Error al cargar. Comprueba la conexión.</div>';
+    if (statusEl) statusEl.textContent = '🔴 Error de conexión';
   }
+}
+
+function _planoFileHtml(f, basePath, showMover) {
+  const ext = (f.name || '').split('.').pop().toLowerCase();
+  const icon = ext === 'pdf' ? '📄' : ['jpg','jpeg','png','gif','webp'].includes(ext) ? '🖼️' : '📐';
+  const size = f.size ? (parseInt(f.size)/1024).toFixed(0) + ' KB' : '';
+  const safeName = (f.name||'').replace(/'/g, "\'");
+  const safeId = (f.id||'').replace(/'/g, "\'");
+  const moverBtn = showMover
+    ? '<button class="btn btn-ghost btn-xs" onclick="abrirModalMoverPlano(\'' + safeId + '\',\'' + safeName + '\')">→ Mover</button>'
+    : '';
+  return '<div class="plano-card">' +
+    '<div class="plano-icon">' + icon + '</div>' +
+    '<div style="flex:1;min-width:0">' +
+    '<div class="plano-name">' + f.name + '</div>' +
+    '<div class="plano-meta">' + size + '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:6px;flex-shrink:0">' +
+    moverBtn +
+    '<button class="btn btn-ghost btn-xs" onclick="window.open(\''+ f.webViewLink +'\',\'_blank\')">👁️ Ver</button>' +
+    '<button class="btn btn-danger btn-xs" onclick="confirmarBorrarPlano(\''+ safeId +'\',\''+ safeName +'\')">✕</button>' +
+    '</div>' +
+    '</div>';
+}
+
+function abrirCarpetaPlanos(nombre) {
+  _planosCurrentFolder = nombre;
+  renderPlanos();
+}
+
+// Variables de estado para mover plano
+let _planoMoverFileId = null;
+let _planoMoverFileName = null;
+
+async function abrirModalMoverPlano(fileId, fileName) {
+  _planoMoverFileId = fileId;
+  _planoMoverFileName = fileName;
+  // Cargar lista de carpetas disponibles
+  const p = activeProject(); if (!p) return;
+  const obraSafe = sanitizeR2Name(p.name);
+  const basePath = 'PLANOS/' + obraSafe;
+  document.getElementById('modalMoverPlanoNombre').textContent = '📄 ' + fileName;
+  const sel = document.getElementById('modalMoverPlanoSelect');
+  sel.innerHTML = '<option value="">— Selecciona una carpeta —</option>';
+  try {
+    const allFiles = await driveListFiles(basePath);
+    const carpetaNames = [...new Set(
+      allFiles
+        .map(f => {
+          const rel = (f.id || '').replace(basePath + '/', '');
+          const parts = rel.split('/');
+          return parts.length >= 2 ? parts[0] : null;
+        })
+        .filter(Boolean)
+    )].sort();
+    if (carpetaNames.length === 0) {
+      sel.innerHTML = '<option value="">Sin carpetas — crea una primero</option>';
+    } else {
+      carpetaNames.forEach(nombre => {
+        const opt = document.createElement('option');
+        opt.value = nombre;
+        opt.textContent = '📁 ' + nombre;
+        sel.appendChild(opt);
+      });
+    }
+  } catch(e) {
+    sel.innerHTML = '<option value="">Error al cargar carpetas</option>';
+  }
+  openModal('modalMoverPlano');
+}
+
+async function ejecutarMoverPlano() {
+  const carpetaDestino = document.getElementById('modalMoverPlanoSelect').value;
+  if (!carpetaDestino) return alert('Selecciona una carpeta destino');
+  const p = activeProject(); if (!p) return;
+  const obraSafe = sanitizeR2Name(p.name);
+  const destPath = 'PLANOS/' + obraSafe + '/' + carpetaDestino;
+  try {
+    // 1. Descargar el archivo original
+    const files = await driveListFiles('PLANOS/' + obraSafe);
+    const original = files.find(f => f.id === _planoMoverFileId);
+    if (!original) return alert('Archivo no encontrado');
+    // 2. Descargar contenido
+    const resp = await fetch(original.webViewLink);
+    if (!resp.ok) throw new Error('No se pudo descargar el archivo');
+    const blob = await resp.blob();
+    const file = new File([blob], _planoMoverFileName, { type: blob.type });
+    // 3. Subir a la carpeta destino
+    await driveUploadFile(file, destPath);
+    // 4. Borrar el original
+    await driveDeleteFile(_planoMoverFileId);
+    closeModal('modalMoverPlano');
+    showToast('Plano movido a ' + carpetaDestino, 'ok');
+    renderPlanos();
+  } catch(e) {
+    console.error('Error moviendo plano:', e);
+    alert('Error al mover el archivo: ' + e.message);
+  }
+}
+
+function volverRaizPlanos() {
+  _planosCurrentFolder = null;
+  renderPlanos();
+}
+
+function confirmarBorrarCarpeta(nombre) {
+  showConfirmModal(
+    '¿Eliminar la carpeta "' + nombre + '" y todos sus archivos?',
+    async () => {
+      try {
+        const path = _planosFolderPath();
+        const p = activeProject(); if (!p) return;
+        const obraSafe = sanitizeR2Name(p.name);
+        const carpetaPath = 'PLANOS/' + obraSafe + '/' + nombre;
+        const files = await driveListFiles(carpetaPath);
+        for (const f of files) { try { await driveDeleteFile(f.id); } catch(e) {} }
+        renderPlanos();
+      } catch(e) { alert('Error al eliminar carpeta.'); }
+    }
+  );
 }
 
 function confirmarBorrarPlano(fileId, fileName) {
   showConfirmModal(
-    `¿Eliminar el plano "${fileName}"?`,
+    '¿Eliminar el plano "' + fileName + '"?',
     async () => {
       try {
-        await requireDriveAuth();
         await driveDeleteFile(fileId);
         renderPlanos();
       } catch(e) { alert('Error al eliminar. Inténtalo de nuevo.'); }
@@ -6096,6 +6353,24 @@ if ('serviceWorker' in navigator) {
   </div>
   <div class="anotador-canvas-wrap">
     <canvas id="anotCanvas"></canvas>
+  </div>
+</div>
+
+<!-- Modal Mover Plano -->
+<div class="overlay" id="modalMoverPlano">
+  <div class="modal">
+    <h3>Mover a carpeta</h3>
+    <p id="modalMoverPlanoNombre" style="font-size:12px;color:var(--text2);margin:8px 0 14px;word-break:break-all"></p>
+    <div class="fg" style="margin-bottom:14px">
+      <label>Selecciona la carpeta destino</label>
+      <select id="modalMoverPlanoSelect" style="background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;font-size:13px;width:100%">
+        <option value="">— Selecciona una carpeta —</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalMoverPlano')">Cancelar</button>
+      <button class="btn btn-primary" onclick="btnGuardar(this, ejecutarMoverPlano)">→ Mover</button>
+    </div>
   </div>
 </div>
 </body>

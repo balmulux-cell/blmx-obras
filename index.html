@@ -1537,7 +1537,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.2.10'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.2.11'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -4563,21 +4563,24 @@ async function ejecutarMoverPlano() {
   if (!carpetaDestino) return alert('Selecciona una carpeta destino');
   const p = activeProject(); if (!p) return;
   const obraSafe = sanitizeR2Name(p.name);
-  const destPath = 'PLANOS/' + obraSafe + '/' + carpetaDestino;
+  // La clave del archivo en R2 es su id (path completo)
+  const srcKey = _planoMoverFileId;
+  const destPath = 'PLANOS/' + obraSafe + '/' + sanitizeR2Name(carpetaDestino);
+  const destKey = destPath + '/' + _planoMoverFileName;
   try {
-    // 1. Descargar el archivo original
-    const files = await driveListFiles('PLANOS/' + obraSafe);
-    const original = files.find(f => f.id === _planoMoverFileId);
-    if (!original) return alert('Archivo no encontrado');
-    // 2. Descargar contenido
-    const resp = await fetch(original.webViewLink);
-    if (!resp.ok) throw new Error('No se pudo descargar el archivo');
-    const blob = await resp.blob();
-    const file = new File([blob], _planoMoverFileName, { type: blob.type });
-    // 3. Subir a la carpeta destino
+    // 1. Descargar a través del Worker (evita CORS con R2 directo)
+    const dlResp = await fetch(DRIVE_WORKER, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Action': 'get-file' },
+      body: JSON.stringify({ key: srcKey })
+    });
+    if (!dlResp.ok) throw new Error('No se pudo descargar el archivo (Worker: ' + dlResp.status + ')');
+    const blob = await dlResp.blob();
+    const file = new File([blob], _planoMoverFileName, { type: blob.type || 'application/octet-stream' });
+    // 2. Subir a la carpeta destino
     await driveUploadFile(file, destPath);
-    // 4. Borrar el original
-    await driveDeleteFile(_planoMoverFileId);
+    // 3. Borrar el original
+    await driveDeleteFile(srcKey);
     closeModal('modalMoverPlano');
     showToast('Plano movido a ' + carpetaDestino, 'ok');
     renderPlanos();

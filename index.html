@@ -1537,7 +1537,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.2.9'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.2.10'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -4286,14 +4286,16 @@ function confirmarBorrarGasto(id) {
   showConfirmModal(
     `¿Eliminar el gasto de ${g.importe.toFixed(2)}€ (${g.fecha})?`,
     async () => {
-      if (g.driveFileId) {
-        try { await requireDriveAuth(); await driveDeleteFile(g.driveFileId); } catch(e) {}
-      }
+      // Borrar el nodo específico en Firebase — .remove() es atómico y no puede ser sobreescrito por el listener
+      try {
+        await DB_REF.child('gastos/' + id).remove();
+      } catch(e) { console.warn('Error borrando gasto en Firebase:', e); }
+      // Actualizar copia local
       DB.gastos = (DB.gastos||[]).filter(x=>x.id!==id);
-      // Borrar directamente en Firebase para asegurar que se elimina para todos los usuarios
-      const gastosObj = {};
-      (DB.gastos||[]).forEach(g => { gastosObj[g.id] = g; });
-      await DB_REF.child('gastos').set(gastosObj);
+      // Borrar archivo de R2 si existe
+      if (g.driveFileId) {
+        try { await driveDeleteFile(g.driveFileId); } catch(e) {}
+      }
       renderDietas();
     }
   );
@@ -4339,16 +4341,30 @@ function exportarDietasExcel() {
 }
 
 // ════════════════════════════════════════════
-// PLANOS CON CARPETAS
+// PLANOS CON CARPETAS (carpetas en Firebase, archivos en R2)
 // ════════════════════════════════════════════
-let _planosCurrentFolder = null;  // null = raíz obra, string = subcarpeta actual
-let _planosSortDesc = true;       // true = Z→A (mayor a menor), false = A→Z
+let _planosCurrentFolder = null;  // null = raíz, string = carpeta actual
+let _planosSortDesc = true;       // true = Z→A, false = A→Z
+let _planosCarpetas = [];         // carpetas de la obra actual (desde Firebase)
 
 function _planosFolderPath() {
   const p = activeProject(); if (!p) return null;
   const obraSafe = sanitizeR2Name(p.name);
   const base = 'PLANOS/' + obraSafe;
-  return _planosCurrentFolder ? base + '/' + _planosCurrentFolder : base;
+  return _planosCurrentFolder ? base + '/' + sanitizeR2Name(_planosCurrentFolder) : base;
+}
+
+function _planosFirebaseRef() {
+  if (!DB.activeId) return null;
+  return DB_REF.child('planos_carpetas/' + DB.activeId);
+}
+
+async function _cargarCarpetasFirebase() {
+  const ref = _planosFirebaseRef(); if (!ref) return [];
+  const snap = await ref.once('value');
+  const val = snap.val();
+  if (!val) return [];
+  return Array.isArray(val) ? val : Object.values(val);
 }
 
 function togglePlanosSort() {
@@ -4358,18 +4374,20 @@ function togglePlanosSort() {
   renderPlanos();
 }
 
-function pedirNuevaCarpetaPlanos() {
+async function pedirNuevaCarpetaPlanos() {
   const nombre = prompt('Nombre de la nueva carpeta:');
   if (!nombre || !nombre.trim()) return;
-  const safe = sanitizeR2Name(nombre.trim());
-  if (!safe) return alert('Nombre no válido');
-  // Crear carpeta subiendo un archivo marcador vacío
-  const marker = new File([''], '.keep', { type: 'text/plain' });
-  const path = _planosFolderPath();
-  if (!path) return;
-  driveUploadFile(marker, path + '/' + safe).then(() => {
-    renderPlanos();
-  }).catch(e => alert('Error al crear carpeta: ' + e.message));
+  const nombreTrim = nombre.trim();
+  const ref = _planosFirebaseRef(); if (!ref) return;
+  // Cargar carpetas actuales y añadir si no existe
+  const carpetas = await _cargarCarpetasFirebase();
+  if (carpetas.find(c => c.nombre === nombreTrim)) {
+    return alert('Ya existe una carpeta con ese nombre');
+  }
+  carpetas.push({ nombre: nombreTrim, creada: new Date().toISOString().split('T')[0] });
+  await ref.set(carpetas);
+  showToast('Carpeta "' + nombreTrim + '" creada', 'ok');
+  renderPlanos();
 }
 
 async function uploadPlanos(files) {
@@ -4400,101 +4418,67 @@ async function renderPlanos() {
   const bcEl = document.getElementById('planosBreadcrumb');
   const uploadZone = document.getElementById('planosUploadZone');
 
-  try {
-    list.innerHTML = '<div class="empty">Cargando...</div>';
-    const path = _planosFolderPath();
+  list.innerHTML = '<div class="empty">Cargando...</div>';
 
-    // Actualizar breadcrumb
-    if (bcEl) {
-      if (!_planosCurrentFolder) {
-        bcEl.innerHTML = '<span style="color:var(--accent);font-weight:600">📁 Planos</span>';
-        if (uploadZone) uploadZone.style.display = 'none';
-      } else {
-        bcEl.innerHTML =
-          '<span onclick="volverRaizPlanos()">📁 Planos</span>' +
-          '<span class="sep">/</span>' +
-          '<span style="color:var(--accent);font-weight:600">' + _planosCurrentFolder + '</span>';
-        if (uploadZone) uploadZone.style.display = 'block';
-      }
-    }
-
-    const allFiles = await driveListFiles(path);
-
+  if (bcEl) {
     if (!_planosCurrentFolder) {
-      // Vista de raíz: mostrar carpetas agrupando por prefijo de subcarpeta
-      const carpetas = {};
-      allFiles.forEach(f => {
-        // Los archivos en subcarpetas tienen key como PLANOS/OBRA/CARPETA/archivo
-        // driveListFiles devuelve archivos directos del path — necesitamos listar subcarpetas
-        // Las subcarpetas aparecen porque subimos un .keep en ellas
-        const parts = (f.id || '').replace(path + '/', '').split('/');
-        if (parts.length >= 2) {
-          const carpetaNombre = parts[0];
-          if (!carpetas[carpetaNombre]) carpetas[carpetaNombre] = { count: 0, lastFile: f };
-          if (f.name !== '.keep') carpetas[carpetaNombre].count++;
-        }
-      });
+      bcEl.innerHTML = '<span style="color:var(--accent);font-weight:600">📁 Planos</span>';
+      if (uploadZone) uploadZone.style.display = 'none';
+    } else {
+      bcEl.innerHTML =
+        '<span onclick="volverRaizPlanos()" style="cursor:pointer">📁 Planos</span>' +
+        '<span class="sep"> / </span>' +
+        '<span style="color:var(--accent);font-weight:600">' + _planosCurrentFolder + '</span>';
+      if (uploadZone) uploadZone.style.display = 'block';
+    }
+  }
 
-      // También buscar subcarpetas listando nivel siguiente
-      // Usamos workerCall list-files con el path actual y detectamos subcarpetas por prefijo
-      const carpetaNames = [...new Set(
-        allFiles
-          .map(f => {
-            const rel = (f.id || '').replace(path + '/', '');
-            const parts = rel.split('/');
-            return parts.length >= 2 ? parts[0] : null;
-          })
-          .filter(Boolean)
-      )];
+  try {
+    if (!_planosCurrentFolder) {
+      const carpetas = await _cargarCarpetasFirebase();
+      carpetas.sort((a, b) => _planosSortDesc ? b.nombre.localeCompare(a.nombre) : a.nombre.localeCompare(b.nombre));
 
-      // Ordenar carpetas: desc (Z→A) o asc (A→Z)
-      carpetaNames.sort((a, b) => _planosSortDesc ? b.localeCompare(a) : a.localeCompare(b));
+      const path = _planosFolderPath();
+      let archivosSueltos = [];
+      try {
+        const allFiles = await driveListFiles(path);
+        archivosSueltos = allFiles.filter(f => {
+          const rel = (f.id || '').replace(path + '/', '');
+          return !rel.includes('/') && f.name !== '.keep';
+        });
+      } catch(e) {}
 
-      // Archivos sueltos en raíz (sin carpeta)
-      const archivosSueltos = allFiles.filter(f => {
-        const rel = (f.id || '').replace(path + '/', '');
-        return !rel.includes('/');
-      }).filter(f => f.name !== '.keep');
-
-      if (carpetaNames.length === 0 && archivosSueltos.length === 0) {
-        list.innerHTML = '<div class="empty">Sin carpetas ni planos aún. Crea una carpeta para empezar.</div>';
+      if (carpetas.length === 0 && archivosSueltos.length === 0) {
+        list.innerHTML = '<div class="empty">Sin carpetas ni planos. Crea una carpeta con "📁 Nueva carpeta".</div>';
         if (statusEl) statusEl.textContent = '🟢 Almacenamiento conectado';
         return;
       }
 
       let html = '';
-
-      // Carpetas
-      carpetaNames.forEach(nombre => {
-        const count = allFiles.filter(f => {
-          const rel = (f.id || '').replace(path + '/', '');
-          return rel.startsWith(nombre + '/') && f.name !== '.keep';
-        }).length;
-        const safeName = nombre.replace(/'/g, "\\'");
-        html += '<div class="plano-carpeta-card" onclick="abrirCarpetaPlanos(\'' + safeName + '\')">'
-          + '<span style="font-size:22px">\uD83D\uDCC1</span>'
-          + '<div style="flex:1;min-width:0">'
-          + '<div class="plano-carpeta-name">' + nombre + '</div>'
-          + '<div class="plano-carpeta-meta">' + count + ' archivo(s)</div>'
-          + '</div>'
-          + (isAdmin ? '<button class="btn btn-danger btn-xs" onclick="event.stopPropagation();confirmarBorrarCarpeta(\'' + safeName + '\')">✕</button>' : '')
-          + '</div>';
+      carpetas.forEach(c => {
+        const safeName = c.nombre.replace(/'/g, "\\'");
+        html += '<div class="plano-carpeta-card" onclick="abrirCarpetaPlanos(\''+safeName+'\')">';
+        html += '<span style="font-size:22px">&#x1F4C1;</span>';
+        html += '<div style="flex:1;min-width:0">';
+        html += '<div class="plano-carpeta-name">' + c.nombre + '</div>';
+        html += '<div class="plano-carpeta-meta">' + (c.creada || '') + '</div>';
+        html += '</div>';
+        if (isAdmin) html += '<button class="btn btn-danger btn-xs" onclick="event.stopPropagation();confirmarBorrarCarpeta(\''+safeName+'\')">✕</button>';
+        html += '</div>';
       });
 
-      // Archivos sueltos si los hay
       if (archivosSueltos.length > 0) {
         html += '<div style="font-size:11px;color:var(--text3);margin:10px 0 6px;text-transform:uppercase;letter-spacing:.1px">Archivos sin carpeta</div>';
         archivosSueltos.forEach(f => { html += _planoFileHtml(f, path, true); });
       }
 
       list.innerHTML = html;
-      if (statusEl) statusEl.textContent = '🟢 ' + carpetaNames.length + ' carpeta(s)';
+      if (statusEl) statusEl.textContent = '🟢 ' + carpetas.length + ' carpeta(s)';
 
     } else {
-      // Vista dentro de carpeta: mostrar archivos
+      const path = _planosFolderPath();
+      const allFiles = await driveListFiles(path);
       const archivos = allFiles.filter(f => f.name !== '.keep');
-
-      // Ordenar por nombre
       archivos.sort((a, b) => _planosSortDesc ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name));
 
       if (archivos.length === 0) {
@@ -4557,23 +4541,14 @@ async function abrirModalMoverPlano(fileId, fileName) {
   const sel = document.getElementById('modalMoverPlanoSelect');
   sel.innerHTML = '<option value="">— Selecciona una carpeta —</option>';
   try {
-    const allFiles = await driveListFiles(basePath);
-    const carpetaNames = [...new Set(
-      allFiles
-        .map(f => {
-          const rel = (f.id || '').replace(basePath + '/', '');
-          const parts = rel.split('/');
-          return parts.length >= 2 ? parts[0] : null;
-        })
-        .filter(Boolean)
-    )].sort();
-    if (carpetaNames.length === 0) {
+    const carpetas = await _cargarCarpetasFirebase();
+    if (carpetas.length === 0) {
       sel.innerHTML = '<option value="">Sin carpetas — crea una primero</option>';
     } else {
-      carpetaNames.forEach(nombre => {
+      carpetas.sort((a,b) => a.nombre.localeCompare(b.nombre)).forEach(c => {
         const opt = document.createElement('option');
-        opt.value = nombre;
-        opt.textContent = '📁 ' + nombre;
+        opt.value = c.nombre;
+        opt.textContent = '📁 ' + c.nombre;
         sel.appendChild(opt);
       });
     }
@@ -4622,12 +4597,21 @@ function confirmarBorrarCarpeta(nombre) {
     '¿Eliminar la carpeta "' + nombre + '" y todos sus archivos?',
     async () => {
       try {
-        const path = _planosFolderPath();
         const p = activeProject(); if (!p) return;
         const obraSafe = sanitizeR2Name(p.name);
-        const carpetaPath = 'PLANOS/' + obraSafe + '/' + nombre;
-        const files = await driveListFiles(carpetaPath);
-        for (const f of files) { try { await driveDeleteFile(f.id); } catch(e) {} }
+        const carpetaPath = 'PLANOS/' + obraSafe + '/' + sanitizeR2Name(nombre);
+        // Borrar archivos de R2
+        try {
+          const files = await driveListFiles(carpetaPath);
+          for (const f of files) { try { await driveDeleteFile(f.id); } catch(e) {} }
+        } catch(e) {}
+        // Borrar carpeta de Firebase
+        const ref = _planosFirebaseRef();
+        if (ref) {
+          const carpetas = await _cargarCarpetasFirebase();
+          const nuevas = carpetas.filter(c => c.nombre !== nombre);
+          await ref.set(nuevas.length ? nuevas : null);
+        }
         renderPlanos();
       } catch(e) { alert('Error al eliminar carpeta.'); }
     }

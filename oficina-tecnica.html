@@ -294,6 +294,7 @@ input:checked+.tgl-s:before{transform:translateX(16px);}
 .qdone-btn.proceso{border-color:rgba(45,199,143,.4);color:var(--green);background:rgba(45,199,143,.08);}
 .qdone-btn.proceso:hover{background:rgba(45,199,143,.18);}
 .qdone-btn.revision{border-color:rgba(74,158,255,.4);color:var(--blue);background:rgba(74,158,255,.08);}
+.qdone-btn.prevision{background:rgba(85,92,120,.1);color:#8b91a8;border-color:rgba(85,92,120,.3);cursor:default;}
 .qdone-btn.revision:hover{background:rgba(74,158,255,.18);}
 /* SEARCH DROPDOWN */
 .search-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .1s;display:flex;align-items:flex-start;gap:10px;}
@@ -417,10 +418,12 @@ input:checked+.tgl-s:before{transform:translateX(16px);}
       </div>
       <div class="fg"><label class="flabel">Estado</label>
         <select class="fselect" id="f-estado">
+          <option value="prevision">🕐 En previsión</option>
           <option value="pendiente">Pendiente</option><option value="proceso">En Proceso</option>
           <option value="revision">Revisión</option><option value="hecho">Hecho</option>
         </select>
       </div>
+      <div class="fg"><label class="flabel">Fecha inicio <span style="font-size:10px;color:var(--text3)">(opcional — En previsión hasta esta fecha)</span></label><input class="finput" id="f-fecha-inicio" type="date"></div>
       <div class="fg"><label class="flabel">Fecha límite</label><input class="finput" id="f-fecha" type="date"></div>
     </div>
     <!-- TIEMPO ESTIMADO -->
@@ -718,6 +721,7 @@ const ARCHIVE_DAYS=10;      // días hasta archivar desde fechaHecho
 // UTILS
 // ============================================================
 const ESTADOS=[
+  {key:'prevision',label:'En previsión',color:'#555c78'},
   {key:'pendiente',label:'Pendiente',color:'#8b91a8'},
   {key:'proceso',  label:'En Proceso',color:'#f5a623'},
   {key:'revision', label:'Revisión',  color:'#4a9eff'},
@@ -733,8 +737,8 @@ function rgb(h){return[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)).join(',');}
 function dTo(f){if(!f)return null;const t=new Date();t.setHours(0,0,0,0);return Math.ceil((new Date(f)-t)/864e5);}
 function dCls(f){const d=dTo(f);if(d===null)return'';if(d<0||d<=2)return'urgent';if(d<=5)return'soon';return'';}
 function dLabel(f){const d=dTo(f);if(d===null)return'—';if(d<0)return`${Math.abs(d)}d vencido`;if(d===0)return'Hoy';if(d===1)return'Mañana';return`${d}d`;}
-function stC(s){return{pendiente:'#8b91a8',proceso:'#f5a623',revision:'#4a9eff',hecho:'#2dc78f'}[s]||'#8b91a8';}
-function stL(s){return{pendiente:'Pendiente',proceso:'En Proceso',revision:'Revisión',hecho:'Hecho'}[s]||s;}
+function stC(s){return{prevision:'#555c78',pendiente:'#8b91a8',proceso:'#f5a623',revision:'#4a9eff',hecho:'#2dc78f'}[s]||'#8b91a8';}
+function stL(s){return{prevision:'En previsión',pendiente:'Pendiente',proceso:'En Proceso',revision:'Revisión',hecho:'Hecho'}[s]||s;}
 function minsToLabel(m){if(!m)return'—';if(m<60)return`${m}m`;const h=Math.floor(m/60),r=m%60;return r?`${h}h${r}m`:`${h}h`;}
 function dayLabel(offset){if(offset===0)return'HOY';if(offset===1)return'+1';return`+${offset}`;}
 function avHtml(ukey,sz=20){const u=getU(ukey);return`<div class="taskav" style="width:${sz}px;height:${sz}px;background:rgba(${rgb(u.color)},.2);color:${u.color};font-size:${Math.round(sz*.44)}px">${u.ini}</div>`;}
@@ -756,7 +760,7 @@ function renderSidebar(){
   a.textContent=u.ini;a.style.background=`rgba(${rgb(u.color)},.2)`;a.style.color=u.color;
   document.getElementById('sb-nm').textContent=u.name;
   document.getElementById('sb-role').textContent=u.role;
-  document.getElementById('badge-p').textContent=tasks.filter(t=>taskBelongsTo(t,u.key)&&t.estado!=='hecho'&&isVisible(t)).length;
+  document.getElementById('badge-p').textContent=tasks.filter(t=>taskBelongsTo(t,u.key)&&t.estado!=='hecho'&&t.estado!=='prevision'&&isVisible(t)).length;
   renderNotifBadge();
   // Analytics: admin y jefe
   const analyticsNav=document.getElementById('nav-analytics');
@@ -1332,6 +1336,7 @@ function openNewTask(id=null){
   document.getElementById('f-titulo').value=t?t.titulo:'';
   document.getElementById('f-desc').value=t?t.desc:'';
   document.getElementById('f-proyecto').value=t?t.proyecto:'';
+  document.getElementById('f-fecha-inicio').value=t?t.fechaInicio||'':'';
   document.getElementById('f-fecha').value=t?t.fecha:new Date(Date.now()+3*864e5).toISOString().split('T')[0];
   document.getElementById('f-estado').value=t?t.estado:'pendiente';
   document.getElementById('f-rev-chk').checked=t?t.rev:false;
@@ -1434,12 +1439,17 @@ function saveTask(){
   const reunionExternos=reunion?document.getElementById('f-reunion-externos').value.trim():'';
   // Para reuniones la fecha principal = fecha de reunión
   const fechaFinal=reunion&&reunionFecha?reunionFecha:document.getElementById('f-fecha').value;
+  const fechaInicio=document.getElementById('f-fecha-inicio').value||'';
+  const estadoSel=document.getElementById('f-estado').value;
+  const today=new Date().toISOString().split('T')[0];
+  // Si hay fechaInicio futura y el estado es pendiente, forzar prevision
+  const estadoFinal=(fechaInicio&&fechaInicio>today&&estadoSel==='pendiente')?'prevision':estadoSel;
   const obj={titulo,desc:document.getElementById('f-desc').value.trim(),
     proyecto:document.getElementById('f-proyecto').value.trim()||'General',
     cat:document.getElementById('f-cat').value,
     asignado:fAssignees[0], asignados:[...fAssignees],
-    prio:fPrio, estado:document.getElementById('f-estado').value,
-    fecha:fechaFinal,
+    prio:fPrio, estado:estadoFinal,
+    fecha:fechaFinal, fechaInicio,
     rev,revFecha:rev?document.getElementById('f-rev-fecha').value:'',
     mins,recur,recurFreq,
     reunion,reunionFecha,reunionHora,reunionExternos,
@@ -1625,10 +1635,19 @@ function deleteDetailTask(){
 function quickDoneBtn(t, stopProp=false){
   const sp=stopProp?'event.stopPropagation();':'';
   if(t.reunion){
-    // Reuniones siempre muestran "Marcar realizada" si no están hechas
     if(t.estado==='hecho') return '';
     return`<div style="margin-top:6px" onclick="${sp}quickAdvance(${t.id})">
       <span class="qdone-btn proceso">✓ Marcar realizada</span></div>`;
+  }
+  if(t.estado==='prevision'){
+    const today=new Date().toISOString().split('T')[0];
+    const dispLabel = t.fechaInicio ? 'Disponible: '+t.fechaInicio : 'En previsión';
+    if(t.fechaInicio && t.fechaInicio<=today){
+      // Ya disponible — mostrar botón para pasar a pendiente
+      return`<div style="margin-top:6px" onclick="${sp}quickAdvance(${t.id})">
+        <span class="qdone-btn proceso">→ Pasar a pendiente</span></div>`;
+    }
+    return`<div style="margin-top:6px"><span class="qdone-btn prevision">🕐 ${dispLabel}</span></div>`;
   }
   if(t.estado==='pendiente'){
     return`<div style="margin-top:6px" onclick="${sp}quickAdvance(${t.id})">
@@ -1655,6 +1674,15 @@ function quickAdvance(id){
     marcarHecho(t);
     renderView();
     return;
+  }
+  if(old==='prevision'){
+    // No se puede iniciar antes de la fechaInicio
+    const today=new Date().toISOString().split('T')[0];
+    if(t.fechaInicio&&t.fechaInicio>today){
+      toast('⚠️ Esta tarea no puede iniciarse hasta '+t.fechaInicio,'err');
+      return;
+    }
+    t.estado='pendiente'; fbSaveTask(t); renderView(); return;
   }
   if(old==='pendiente'){
     t.estado='proceso'; fbSaveTask(t);
@@ -2092,9 +2120,26 @@ function isArchived(t){
   return Math.round((today-d)/864e5)>ARCHIVE_DAYS;
 }
 function isVisible(t){
-  // Una tarea "hecho" es visible en kanban si lleva ≤ARCHIVE_DAYS días
   if(t.estado==='hecho') return !isArchived(t);
+  // Tareas en previsión: solo visibles si el usuario es admin/jefe o es el asignado
+  if(t.estado==='prevision'){
+    const u=cu();
+    if(!u.admin&&!u.jefe&&!taskBelongsTo(t,u.key)) return false;
+  }
   return true;
+}
+// Comprobar si una tarea debe pasar de prevision a pendiente hoy
+function checkPrevisionToday(){
+  const today=new Date().toISOString().split('T')[0];
+  let changed=false;
+  tasks.forEach(t=>{
+    if(t.estado==='prevision' && t.fechaInicio && t.fechaInicio<=today){
+      t.estado='pendiente';
+      fbSaveTask(t);
+      changed=true;
+    }
+  });
+  if(changed) renderView();
 }
 // Para analytics: incluir TODAS las hecho, archivadas o no
 function getFilteredDone(f){
@@ -2261,16 +2306,19 @@ function nextRecurDate(fromDate, freq){
   return d.toISOString().split('T')[0];
 }
 function spawnRecurring(t){
-  // Genera la próxima instancia de una tarea recurrente
   if(!t.recur||!t.recurFreq) return;
   const baseDate=t.fecha||new Date().toISOString().split('T')[0];
   const next=nextRecurDate(baseDate,t.recurFreq);
-  const nr={...t, id:nextId++, estado:'pendiente',
-    fecha:next, fechaHecho:null, planDay:null,
+  const today=new Date().toISOString().split('T')[0];
+  // Tarea recurrente: nace en previsión si la fecha es futura, pendiente si es hoy o pasada
+  const estadoNuevo=next>today?'prevision':'pendiente';
+  const nr={...t, id:nextId++, estado:estadoNuevo,
+    fecha:next, fechaInicio:next,
+    fechaHecho:null, planDay:null,
     assignHistory:[], minsHistory:[], asignadoOriginal:undefined};
   tasks.unshift(nr);
   fbSaveTask(nr);
-  toast(`🔁 Nueva tarea recurrente generada para ${next}`);
+  toast('🔁 Nueva recurrente ' + (estadoNuevo==='prevision'?'en previsión para ':'generada para ') + next);
 }
 
 // ============================================================
@@ -2563,6 +2611,7 @@ async function initFromFirebase() {
   plannerUserKey = cu().key;
   renderView();
   setTimeout(checkNotificationsOnLoad, 600);
+  setTimeout(checkPrevisionToday, 1000);
 }
 
 window.addEventListener('beforeunload', () => {

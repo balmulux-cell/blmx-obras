@@ -1385,7 +1385,7 @@ tr:hover td{background:var(--s1)!important}
 <!-- Modal nuevo gasto -->
 <div class="overlay" id="modalGasto">
   <div class="modal" style="max-height:90vh;overflow-y:auto">
-    <h3>Añadir gasto</h3>
+    <h3 id="modalGastoTitle">Añadir gasto</h3>
     <!-- Zona de subida archivo -->
     <div class="upload-zone" id="gastoUploadZone" onclick="document.getElementById('gastoFileInput').click()" style="margin-bottom:12px;padding:16px;border-color:var(--red)">
       <input type="file" id="gastoFileInput" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="previewGastoFile(this)">
@@ -1514,7 +1514,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.2.7'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.2.8'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2880,8 +2880,9 @@ function poblarFiltroJornada() {
   const row = document.getElementById('jornadaFiltroTrabRow');
   const sel = document.getElementById('jornadaFiltroTrab');
   if (!row || !sel) return;
-  row.style.display = isOficina ? 'block' : 'none';
-  if (!isOficina) return;
+  const showFiltro = isOficina || (currentUser && currentUser.rol === 'jefe');
+  row.style.display = showFiltro ? 'block' : 'none';
+  if (!showFiltro) return;
   sel.innerHTML = '<option value="todos">Todos los trabajadores</option>' +
     (DB.trabajadores||[]).map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
   // Resetear siempre a "todos" al entrar a la pantalla
@@ -2901,14 +2902,14 @@ function renderJornadaHist(){
 
   // Solo mostrar/ocultar — NO poblar, NO leer del DOM
   const row = document.getElementById('jornadaFiltroTrabRow');
-  if (row) row.style.display = isOficina ? 'block' : 'none';
+  const showFiltroRow = isOficina || (currentUser && currentUser.rol === 'jefe');
+  if (row) row.style.display = showFiltroRow ? 'block' : 'none';
 
   // Usar variable global como única fuente de verdad
-  const filtroTrabOficina = isOficina ? _jornadaFiltroTrabId : 'todos';
+  const filtroTrabOficina = showFiltroRow ? _jornadaFiltroTrabId : 'todos';
 
   let jornadas = (DB.jornadas||[]).filter(j => {
-    if (isAdmin) {
-      // Solo filtrar por el desplegable de filtro — ignorar jTrabajador (es para registrar, no para filtrar)
+    if (isAdmin || (currentUser && currentUser.rol === 'jefe')) {
       return filtroTrabOficina === 'todos' || String(j.trabId) === String(filtroTrabOficina);
     }
     return String(j.trabId) === String(currentUser?.id);
@@ -4028,6 +4029,7 @@ function getMonthLabel(dateStr) {
 // ════════════════════════════════════════════
 let filtroDieta = 'todos';
 let gastoFileToUpload = null;
+let gastoEditId = null; // null = nuevo, id = editando
 let dietasRootFolderId = null;
 
 function openModalGasto() {
@@ -4039,6 +4041,8 @@ function openModalGasto() {
   document.getElementById('gastoPreview').textContent = '📎';
   document.getElementById('gastoUploadZone').style.borderColor = 'var(--red)';
   gastoFileToUpload = null;
+  gastoEditId = null;
+  document.getElementById('modalGastoTitle').textContent = 'Añadir gasto';
   // Populate trabajador — admins can pick any, others locked to themselves
   const selT = document.getElementById('gastoTrabajador');
   if (isAdmin) {
@@ -4082,7 +4086,7 @@ async function saveGasto() {
   if (!fecha) return alert('Selecciona una fecha');
   if (!importe || importe <= 0) return alert('Introduce un importe válido');
   if (!trabajador) return alert('Selecciona un trabajador');
-  if (!gastoFileToUpload) return alert('Debes adjuntar una foto o PDF del gasto');
+  if (!gastoFileToUpload && !gastoEditId) return alert('Debes adjuntar una foto o PDF del gasto');
   if (!navigator.onLine) {
     showToast('Sin conexión a internet. No se puede guardar el gasto ahora.', 'error');
     return;
@@ -4115,16 +4119,40 @@ async function saveGasto() {
       driveFileId  = uploaded.id;
       driveLink    = uploaded.webViewLink;
       finalFileName = fileToUpload.name;
-    } catch(e) { console.warn('Drive upload failed:', e); }
+    } catch(e) {
+      console.warn('Drive upload failed:', e);
+      if (!gastoEditId) {
+        alert('⚠️ Error al subir el archivo. Comprueba la conexión e inténtalo de nuevo.');
+        return;
+      }
+    }
   }
 
-  const gasto = {
-    id: Date.now(), tipo, fecha, importe, trabajador, obra, desc,
-    driveFileId, driveLink, fileName: finalFileName || gastoFileToUpload?.name || null,
-    isImage: gastoFileToUpload?.type?.startsWith('image/') || false
-  };
-  if (!DB.gastos) DB.gastos = [];
-  DB.gastos.push(gasto);
+  if (gastoEditId) {
+    // Editar gasto existente
+    const idx = (DB.gastos||[]).findIndex(x => x.id === gastoEditId);
+    if (idx >= 0) {
+      const existing = DB.gastos[idx];
+      DB.gastos[idx] = {
+        ...existing, tipo, fecha, importe, trabajador, obra, desc,
+        // Solo actualizar archivo si se subió uno nuevo
+        driveFileId: driveFileId || existing.driveFileId,
+        driveLink: driveLink || existing.driveLink,
+        fileName: finalFileName || existing.fileName,
+        isImage: gastoFileToUpload ? (gastoFileToUpload.type?.startsWith('image/') || false) : existing.isImage
+      };
+    }
+    gastoEditId = null;
+  } else {
+    // Gasto nuevo
+    const gasto = {
+      id: Date.now(), tipo, fecha, importe, trabajador, obra, desc,
+      driveFileId, driveLink, fileName: finalFileName || gastoFileToUpload?.name || null,
+      isImage: gastoFileToUpload?.type?.startsWith('image/') || false
+    };
+    if (!DB.gastos) DB.gastos = [];
+    DB.gastos.push(gasto);
+  }
   await saveDB();
   closeModal('modalGasto');
   renderDietas();
@@ -4184,9 +4212,9 @@ function renderDietas() {
     const [cls, label] = tipoInfo[g.tipo] || ['',''];
     const thumb = g.driveLink
       ? (g.isImage
-        ? `<div class="gasto-thumb-pdf" onclick="window.open('${g.driveLink}','_blank')">🖼️</div>`
-        : `<div class="gasto-thumb-pdf" onclick="window.open('${g.driveLink}','_blank')">📄</div>`)
-      : `<div class="gasto-thumb-pdf">📎</div>`;
+        ? `<div class="gasto-thumb-pdf" onclick="window.open('${g.driveLink}','_blank')" title="Ver imagen">🖼️<span style="position:absolute;bottom:2px;right:2px;font-size:8px">✅</span></div>`
+        : `<div class="gasto-thumb-pdf" onclick="window.open('${g.driveLink}','_blank')" title="Ver PDF">📄<span style="position:absolute;bottom:2px;right:2px;font-size:8px">✅</span></div>`)
+      : `<div class="gasto-thumb-pdf" title="Archivo no sincronizado" style="border-color:var(--red)">📎<span style="position:absolute;bottom:2px;right:2px;font-size:8px;color:var(--red)">⚠️</span></div>`;
     return `<div class="gasto-card">
       ${thumb}
       <div class="gasto-info">
@@ -4199,9 +4227,34 @@ function renderDietas() {
         </div>
         <div class="gasto-meta">📅 ${g.fecha} · 👷 ${g.trabajador} · 🏗️ ${g.obra}</div>
       </div>
-      <button class="btn btn-danger btn-xs" style="flex-shrink:0" onclick="confirmarBorrarGasto(${g.id})">✕</button>
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+        <button class="btn btn-ghost btn-xs" onclick="editarGasto(${g.id})">✏️</button>
+        <button class="btn btn-danger btn-xs" onclick="confirmarBorrarGasto(${g.id})">✕</button>
+      </div>
     </div>`;
   }).join('');
+}
+
+function editarGasto(id) {
+  const g = (DB.gastos||[]).find(x => x.id === id);
+  if (!g) return;
+  gastoEditId = id;
+  gastoFileToUpload = null; // no se requiere nuevo archivo al editar
+  document.getElementById('modalGastoTitle').textContent = 'Editar gasto';
+  document.getElementById('gastoTipo').value = g.tipo || 'ticket';
+  document.getElementById('gastoFecha').value = g.fecha || '';
+  document.getElementById('gastoImporte').value = g.importe || '';
+  document.getElementById('gastoTrabajador').value = g.trabajador || '';
+  document.getElementById('gastoObra').value = g.obra || '';
+  document.getElementById('gastoDesc').value = g.desc || '';
+  // Mostrar nombre del archivo actual
+  const label = document.getElementById('gastoUploadLabel');
+  const preview = document.getElementById('gastoPreview');
+  if (g.driveLink) {
+    if (label) label.textContent = g.fileName || 'Archivo adjunto (no cambiar)';
+    if (preview) preview.textContent = g.isImage ? '🖼️' : '📄';
+  }
+  openModal('modalGasto');
 }
 
 function confirmarBorrarGasto(id) {
@@ -4214,7 +4267,11 @@ function confirmarBorrarGasto(id) {
         try { await requireDriveAuth(); await driveDeleteFile(g.driveFileId); } catch(e) {}
       }
       DB.gastos = (DB.gastos||[]).filter(x=>x.id!==id);
-      await saveDB(); renderDietas();
+      // Borrar directamente en Firebase para asegurar que se elimina para todos los usuarios
+      const gastosObj = {};
+      (DB.gastos||[]).forEach(g => { gastosObj[g.id] = g; });
+      await DB_REF.child('gastos').set(gastosObj);
+      renderDietas();
     }
   );
 }

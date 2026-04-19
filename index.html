@@ -492,6 +492,12 @@ tr:hover td{background:var(--s1)!important}
         <div class="mosaic-sub">Gestión de tareas</div>
       </button>
 
+      <button class="mosaic-btn" id="homeBtnPlanAdmin" onclick="abrirPlanificacionAdmin()" style="display:none">
+        <span class="mosaic-icon">📋</span>
+        <div class="mosaic-label">Planificación<br>Administrativa</div>
+        <div class="mosaic-sub">Tareas · Facturas · Docs</div>
+      </button>
+
       <button class="mosaic-btn" id="homeAdminBtn" onclick="goScreen('screenObras');showObraPanel('admin')" style="display:none">
         <span class="mosaic-icon">⚙️</span>
         <div class="mosaic-label">Adminis-<br>tración</div>
@@ -974,16 +980,16 @@ tr:hover td{background:var(--s1)!important}
       <!-- ADMIN -->
       <div class="panel-inner" id="inner-admin" style="display:none">
         <div class="stitle"><div class="stitle-bar"></div>Administración</div>
-        <div class="form-card">
+        <div class="form-card" id="adminTrabSection">
           <div class="stitle" style="margin-bottom:10px"><div class="stitle-bar"></div>Trabajadores</div>
           <div class="frow" style="margin-bottom:8px">
             <div class="fg"><label>Nombre</label><input type="text" id="wNombre" placeholder="Nombre del trabajador"></div>
-            <div class="fg" style="max-width:130px"><label>Rol</label><select id="wRol"><option value="operario">Operario</option><option value="jefe">Jefe de obra</option><option value="oficina">Oficina</option><option value="admin">Admin</option></select></div>
+            <div class="fg" style="max-width:130px"><label>Rol</label><select id="wRol"><option value="operario">Operario</option><option value="jefe">Jefe de obra</option><option value="oficina">Oficina</option><option value="contabilidad">Contabilidad</option><option value="admin">Admin</option></select></div>
           </div>
           <div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-primary" onclick="btnGuardar(this, saveTrabajador)">+ Añadir</button></div>
           <div id="trabajadoresList"></div>
         </div>
-        <div class="form-card">
+        <div class="form-card" id="adminPassSection">
           <div class="stitle" style="margin-bottom:10px"><div class="stitle-bar"></div>Contraseña de oficina</div>
           <div class="frow">
             <div class="fg"><label>Nueva contraseña</label><input type="password" id="newPass" placeholder="Mín. 4 caracteres"></div>
@@ -1006,6 +1012,14 @@ tr:hover td{background:var(--s1)!important}
             <div class="fg"><label>Confirmar</label><input type="password" id="newWorkerPass2" placeholder="Repetir"></div>
           </div>
           <button class="btn btn-primary" onclick="btnGuardar(this, changeWorkerPassword)">Cambiar contraseña operarios</button>
+        </div>
+        <div class="form-card" id="contPassSection" style="display:none">
+          <div class="stitle" style="margin-bottom:10px"><div class="stitle-bar" style="background:#2dc78f"></div>Contraseña Contabilidad</div>
+          <div class="frow">
+            <div class="fg"><label>Nueva contraseña Contabilidad</label><input type="password" id="newContPass" placeholder="Mín. 4 caracteres"></div>
+            <div class="fg"><label>Confirmar</label><input type="password" id="newContPass2" placeholder="Repetir"></div>
+          </div>
+          <button class="btn btn-primary" onclick="btnGuardar(this, changeContPassword)">Cambiar contraseña Contabilidad</button>
         </div>
         <div class="form-card">
           <div class="stitle" style="margin-bottom:10px"><div class="stitle-bar"></div>Borrado masivo de registros</div>
@@ -1582,12 +1596,14 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.2.12'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.1'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
 const DEFAULT_ADMIN_MOD_PASS = 'blmx2024admin';
 const ADMIN_MOD_PASS_KEY = 'obra_admin_mod_pass';
+const DEFAULT_CONT_PASS = 'blmx2024cont';
+const CONT_PASS_KEY = 'obra_cont_pass';
 const WORKER_PASS_KEY = 'obra_worker_pass';
 const WORKER_SESSION_KEY = 'obra_worker_session';
 const DEFAULT_WORKER_PASS = 'blmx2026';
@@ -1599,6 +1615,7 @@ let saveTimeout = null;
 let isAdmin = false;
 let isOficina = false; // true solo para rol 'oficina' y 'admin'
 let isAdminMod = false; // true solo para rol 'admin' — permisos especiales módulos
+let isContabilidad = false; // true solo para rol 'contabilidad'
 
 // ════════════════════════════════════════════
 // SYNC
@@ -1764,6 +1781,9 @@ function getAdminPass() {
 function getAdminModPass() {
   return DB.settings?.adminModPass || localStorage.getItem(ADMIN_MOD_PASS_KEY) || DEFAULT_ADMIN_MOD_PASS;
 }
+function getContPass() {
+  return DB.settings?.contPass || localStorage.getItem(CONT_PASS_KEY) || DEFAULT_CONT_PASS;
+}
 function getWorkerPass() {
   return DB.settings?.workerPass || localStorage.getItem(WORKER_PASS_KEY) || DEFAULT_WORKER_PASS;
 }
@@ -1771,6 +1791,7 @@ function checkAdminSession() {
   isAdmin = localStorage.getItem(ADMIN_SESSION_KEY) === 'true';
   isOficina = localStorage.getItem('obra_oficina_session') === 'true';
   isAdminMod = localStorage.getItem('obra_admin_mod_session') === 'true';
+  isContabilidad = localStorage.getItem('obra_cont_session') === 'true';
   applyAdminUI();
 }
 function checkAdmin() {
@@ -1798,9 +1819,11 @@ function logoutAdmin() {
   isAdmin = false;
   isOficina = false;
   isAdminMod = false;
+  isContabilidad = false;
   localStorage.removeItem(ADMIN_SESSION_KEY);
   localStorage.removeItem('obra_oficina_session');
   localStorage.removeItem('obra_admin_mod_session');
+  localStorage.removeItem('obra_cont_session');
   applyAdminUI();
   goHome();
 }
@@ -1818,6 +1841,19 @@ function changeWorkerPassword() {
   document.getElementById('newWorkerPass').value = '';
   document.getElementById('newWorkerPass2').value = '';
   alert('✅ Contraseña de operarios cambiada. Todos los operarios deberán introducirla de nuevo.');
+}
+function changeContPassword() {
+  const p1 = document.getElementById('newContPass').value;
+  const p2 = document.getElementById('newContPass2').value;
+  if (!p1 || p1.length < 4) return alert('La contraseña debe tener al menos 4 caracteres');
+  if (p1 !== p2) return alert('Las contraseñas no coinciden');
+  if (!DB.settings) DB.settings = {};
+  DB.settings.contPass = p1;
+  localStorage.setItem(CONT_PASS_KEY, p1);
+  saveDB();
+  document.getElementById('newContPass').value = '';
+  document.getElementById('newContPass2').value = '';
+  alert('✅ Contraseña Contabilidad cambiada.');
 }
 function changeAdminModPassword() {
   const p1 = document.getElementById('newAdminModPass').value;
@@ -1882,15 +1918,25 @@ function applyAdminUI() {
   if(filtroTrabRow) filtroTrabRow.style.display = isOficina ? 'block' : 'none';
   const adminModPassSec = document.getElementById('adminModPassSection');
   if(adminModPassSec) adminModPassSec.style.display = isAdminMod ? 'block' : 'none';
+  // Contabilidad: ocultar trabajadores y contraseñas en Administración, solo borrado masivo
+  const adminTrabSec = document.getElementById('adminTrabSection');
+  if(adminTrabSec) adminTrabSec.style.display = isContabilidad ? 'none' : '';
+  const adminPassSec = document.getElementById('adminPassSection');
+  if(adminPassSec) adminPassSec.style.display = isContabilidad ? 'none' : '';
+  // Añadir sección cambio contraseña contabilidad (solo admin)
+  const contPassSec = document.getElementById('contPassSection');
+  if(contPassSec) contPassSec.style.display = isAdminMod ? 'block' : 'none';
   const btnSegPed = document.getElementById('homeBtnSeguimientoPedidos');
-  if(btnSegPed) btnSegPed.style.display = isOficina ? 'flex' : 'none';
+  if(btnSegPed) btnSegPed.style.display = (isOficina || isContabilidad) ? 'flex' : 'none';
   const btnSegInc = document.getElementById('homeBtnSeguimientoIncidencias');
-  if(btnSegInc) btnSegInc.style.display = isOficina ? 'flex' : 'none';
+  if(btnSegInc) btnSegInc.style.display = (isOficina || isContabilidad) ? 'flex' : 'none';
   const btnOT = document.getElementById('homeBtnOficinaTecnica');
   if(btnOT) btnOT.style.display = (isAdminMod || isAdmin) ? 'flex' : 'none';
+  const btnPA = document.getElementById('homeBtnPlanAdmin');
+  if(btnPA) btnPA.style.display = (isAdminMod || isContabilidad) ? 'flex' : 'none';
   // Admin home button
   const adminBtn = document.getElementById('homeAdminBtn');
-  if(adminBtn) adminBtn.style.display = isOficina ? 'flex' : 'none';
+  if(adminBtn) adminBtn.style.display = (isOficina || isContabilidad) ? 'flex' : 'none';
 }
 
 // ════════════════════════════════════════════
@@ -3272,11 +3318,12 @@ document.addEventListener('change', function(e) {
     const trabId = e.target.value;
     const trab = (DB.trabajadores||[]).find(t => t.id === trabId);
     const needsAdminMod = trab && trab.rol === 'admin';
+    const needsCont = trab && trab.rol === 'contabilidad';
     const needsPass = trab && (trab.rol === 'jefe' || trab.rol === 'oficina');
     const needsWorkerPass = trab && trab.rol === 'operario' && !localStorage.getItem(WORKER_SESSION_KEY + '_' + trab.id);
-    const showPass = needsAdminMod || needsPass || needsWorkerPass;
+    const showPass = needsAdminMod || needsCont || needsPass || needsWorkerPass;
     document.getElementById('welcomePassSection').style.display = showPass ? 'block' : 'none';
-    document.getElementById('welcomePass').placeholder = needsAdminMod ? 'Contraseña de Admin' : (needsPass ? 'Contraseña de oficina/jefe' : 'Contraseña de operarios');
+    document.getElementById('welcomePass').placeholder = needsAdminMod ? 'Contraseña de Admin' : (needsCont ? 'Contraseña de Contabilidad' : (needsPass ? 'Contraseña de oficina/jefe' : 'Contraseña de operarios'));
     if (showPass) setTimeout(() => document.getElementById('welcomePass').focus(), 100);
   }
 });
@@ -3290,6 +3337,7 @@ function confirmWelcome() {
   if (!trab) { alert('Trabajador no encontrado. Puede que los datos aún no hayan cargado.'); return; }
 
   const needsAdminModPass = trab.rol === 'admin';
+  const needsContPass = trab.rol === 'contabilidad';
   const needsPass = trab.rol === 'jefe' || trab.rol === 'oficina';
   const needsWorkerPass = trab.rol === 'operario' && !localStorage.getItem(WORKER_SESSION_KEY + '_' + trab.id);
   if (needsAdminModPass) {
@@ -3298,6 +3346,14 @@ function confirmWelcome() {
     if (pass !== getAdminModPass()) { alert('Contraseña incorrecta'); return; }
     isAdmin = true;
     localStorage.setItem(ADMIN_SESSION_KEY, 'true');
+  } else if (needsContPass) {
+    const pass = document.getElementById('welcomePass').value;
+    if (!pass) { alert('Introduce la contraseña de Contabilidad'); return; }
+    if (pass !== getContPass()) { alert('Contraseña incorrecta'); return; }
+    isAdmin = true; // Necesita isAdmin para ver jornadas, dietas, etc.
+    localStorage.setItem(ADMIN_SESSION_KEY, 'true');
+    isContabilidad = true;
+    localStorage.setItem('obra_cont_session', 'true');
   } else if (needsPass) {
     const pass = document.getElementById('welcomePass').value;
     if (!pass) { alert('Introduce la contraseña'); return; }
@@ -3338,6 +3394,7 @@ function applyUserSession() {
   // Recalcular isOficina desde el rol del usuario actual
   isOficina = currentUser.rol === 'oficina' || currentUser.rol === 'admin';
   isAdminMod = currentUser.rol === 'admin';
+  isContabilidad = currentUser.rol === 'contabilidad';
   // Actualizar rol en DB si Alexandra tiene rol oficina (migración automática)
   if (currentUser.nombre === 'Alexandra Grazioli' && currentUser.rol === 'oficina') {
     const t = (DB.trabajadores||[]).find(x => x.id === currentUser.id);
@@ -3346,8 +3403,9 @@ function applyUserSession() {
   }
   localStorage.setItem('obra_oficina_session', isOficina ? 'true' : 'false');
   localStorage.setItem('obra_admin_mod_session', isAdminMod ? 'true' : 'false');
+  localStorage.setItem('obra_cont_session', isContabilidad ? 'true' : 'false');
   // Update home pill
-  const avatars = { operario:'👷', jefe:'🏗️', oficina:'🏢', admin:'⭐' };
+  const avatars = { operario:'👷', jefe:'🏗️', oficina:'🏢', contabilidad:'📊', admin:'⭐' };
   const el = document.getElementById('homeUserAvatar');
   const nm = document.getElementById('homeUserName');
   const rl = document.getElementById('homeUserRole');
@@ -4275,7 +4333,7 @@ function renderDietas() {
 
   // Filter by tipo
   const filtered = filtroDieta === 'todos' ? gastos : gastos.filter(g => g.tipo === filtroDieta);
-  filtered.sort((a,b) => b.fecha.localeCompare(a.fecha));
+  filtered.sort((a,b) => { const fd = b.fecha.localeCompare(a.fecha); return fd !== 0 ? fd : b.id - a.id; });
 
   const list = document.getElementById('dietasList');
   if (!list) return;
@@ -5821,6 +5879,12 @@ function exportarAvanceExcel() {
 // ════════════════════════════════════════════
 // SEGUIMIENTO PEDIDOS (ventana nueva)
 // ════════════════════════════════════════════
+
+function abrirPlanificacionAdmin() {
+  const url = 'https://balmulux-cell.github.io/blmx-obras/planificacion-admin.html';
+  const win = window.open(url, 'blmx_plan_admin', 'width=1400,height=900,menubar=no,toolbar=no,location=no');
+  if (win) win.focus();
+}
 
 function abrirOficinaTecnica() {
   const sesion = localStorage.getItem('obra_user_session');

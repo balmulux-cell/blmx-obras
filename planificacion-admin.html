@@ -1,0 +1,3484 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>BLMX · Planificación Administrativa</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════
+   TEMA CLARO — Optimizado para TDAH + legibilidad
+   ══════════════════════════════════════════ */
+:root {
+  /* Fondos — blancos y grises muy suaves */
+  --bg:   #f5f6f8;
+  --s1:   #ffffff;
+  --s2:   #f0f2f5;
+  --s3:   #e8eaed;
+  /* Bordes — bien visibles pero sin agresividad */
+  --border:  #d0d5dd;
+  --border2: #b8bec8;
+  /* Acento principal — naranja cálido, alto contraste */
+  --accent:  #d97706;
+  /* Semáforo — colores saturados para máxima legibilidad */
+  --green:  #15803d;
+  --red:    #dc2626;
+  --blue:   #1d4ed8;
+  --purple: #7c3aed;
+  --warn:   #b45309;
+  --teal:   #0f766e;
+  /* Texto — negro casi puro para máximo contraste */
+  --text:   #111827;
+  --text2:  #374151;
+  --text3:  #6b7280;
+  /* Sombras suaves para separar elementos */
+  --shadow: 0 1px 4px rgba(0,0,0,.10);
+  --shadow-md: 0 2px 10px rgba(0,0,0,.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  /* Tipografía más grande y cómoda — reduce fatiga visual */
+  font-family: 'Inter', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-x: hidden;
+}
+.screen { display: none; min-height: 100vh; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* ── TOPBAR ── */
+.topbar {
+  background: #ffffff;
+  border-bottom: 2px solid var(--border);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 54px;
+  flex-shrink: 0;
+  box-shadow: var(--shadow);
+}
+.back-btn {
+  background: var(--s2);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: .15s;
+}
+.back-btn:hover { background: var(--s3); }
+.topbar-title {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── MAIN ── */
+.main {
+  padding: 18px;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ── MOSAICO HOME — botones grandes, claros, fáciles de pulsar ── */
+.mosaic {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.mosaic-btn {
+  position: relative;
+  background: #ffffff;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 16px;
+  cursor: pointer;
+  transition: all .18s;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 100px;
+  box-shadow: var(--shadow);
+}
+.mosaic-btn:hover, .mosaic-btn:active {
+  border-color: var(--accent);
+  background: #fffbf0;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.mosaic-icon { font-size: 28px; margin-bottom: 8px; }
+.mosaic-label { font-weight: 800; font-size: 14px; color: var(--text); line-height: 1.3; }
+.mosaic-sub   { font-size: 11px; color: var(--text3); margin-top: 3px; font-weight: 500; }
+.mosaic-badge {
+  position: absolute;
+  top: 10px; right: 10px;
+  background: var(--red);
+  color: #fff;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+.mosaic-btn.accent {
+  border-color: var(--accent);
+  background: #fffbf0;
+}
+.mosaic-btn.accent .mosaic-label { color: var(--accent); }
+
+/* ── BOTONES ── más grandes, más fáciles de pulsar */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 16px;
+  border-radius: 7px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: .2px;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all .15s;
+  white-space: nowrap;
+  font-family: 'Inter', sans-serif;
+}
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: #b45309; border-color: #b45309; }
+.btn-ghost { background: #fff; color: var(--text2); border-color: var(--border); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); background: #fffbf0; }
+.btn-danger { background: #fef2f2; color: var(--red); border-color: #fca5a5; }
+.btn-danger:hover { background: #fee2e2; }
+.btn-green  { background: #f0fdf4; color: var(--green); border-color: #86efac; }
+.btn-green:hover { background: #dcfce7; }
+.btn-blue   { background: #eff6ff; color: var(--blue); border-color: #93c5fd; }
+.btn-blue:hover { background: #dbeafe; }
+.btn-warn   { background: #fffbeb; color: var(--warn); border-color: #fcd34d; }
+.btn-warn:hover { background: #fef3c7; }
+.btn-purple { background: #f5f3ff; color: var(--purple); border-color: #c4b5fd; }
+.btn-purple:hover { background: #ede9fe; }
+.btn-sm  { padding: 6px 12px; font-size: 11px; }
+.btn-xs  { padding: 4px 9px;  font-size: 10px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── FORMULARIOS — campos claramente delimitados ── */
+.form-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.stitle {
+  font-weight: 800;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  color: var(--accent);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stitle-bar { width: 4px; height: 16px; background: var(--accent); border-radius: 2px; flex-shrink: 0; }
+.frow { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.fg { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 130px; }
+.fg label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  color: var(--text3);
+  font-weight: 700;
+}
+/* Inputs grandes, bordes visibles, fondo blanco */
+.fg input, .fg select, .fg textarea {
+  background: #fff;
+  border: 2px solid var(--border);
+  color: var(--text);
+  border-radius: 7px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: 'Inter', sans-serif;
+  width: 100%;
+  transition: border-color .15s;
+}
+.fg textarea { resize: vertical; min-height: 64px; }
+.fg input:focus, .fg select:focus, .fg textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(217,119,6,.12);
+}
+.fg select option { background: #fff; color: var(--text); }
+
+/* ── TABLA ── */
+.tbl-wrap {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  overflow-x: auto;
+  background: #fff;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+table { width: 100%; border-collapse: collapse; background: #fff; }
+th {
+  background: var(--s2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  color: var(--text2);
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+  font-weight: 700;
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--s2);
+  color: var(--text);
+  background: #fff;
+  vertical-align: middle;
+  font-size: 14px;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafafa; }
+
+/* ── BADGES ── */
+.badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+.b-ok { background: #dcfce7; color: #15803d; }
+.b-w  { background: #fef3c7; color: #b45309; }
+.b-r  { background: #fee2e2; color: #dc2626; }
+.b-b  { background: #dbeafe; color: #1d4ed8; }
+.b-m  { background: #f3f4f6; color: #6b7280; }
+.b-p  { background: #f5f3ff; color: #7c3aed; }
+
+/* ── CARDS — bordes izquierdos de color para identificación rápida ── */
+.card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: var(--shadow);
+}
+.card.bl-r { border-left: 4px solid var(--red);    background: #fff8f8; }
+.card.bl-g { border-left: 4px solid var(--green);  background: #f8fff9; }
+.card.bl-w { border-left: 4px solid var(--warn);   background: #fffdf0; }
+.card.bl-b { border-left: 4px solid var(--blue);   background: #f8fbff; }
+.card.bl-p { border-left: 4px solid var(--purple); background: #faf8ff; }
+.card.bl-grey { border-left: 4px solid var(--border); opacity: .6; }
+
+/* ── ALERTAS ── */
+.alert-banner {
+  padding: 13px 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 2px solid;
+  box-shadow: var(--shadow);
+}
+.alert-banner.r { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+.alert-banner.w { background: #fffbeb; border-color: #fcd34d; color: #b45309; }
+
+/* ── OVERLAY / MODAL ── */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 300;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.overlay.open { display: flex; }
+.modal {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 540px;
+  width: 100%;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-md);
+}
+.modal h3 {
+  font-weight: 800;
+  font-size: 16px;
+  color: var(--accent);
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--s2);
+}
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+
+/* ── CHECKBOX ── */
+.chk-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text2);
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--s2);
+  transition: .15s;
+}
+.chk-row:hover { border-color: var(--accent); background: #fffbf0; }
+.chk-row input { accent-color: var(--accent); width: 18px; height: 18px; }
+
+/* ── STATS ── */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.stat {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+.stat-l { font-size: 10px; text-transform: uppercase; letter-spacing: .3px; color: var(--text3); margin-bottom: 5px; font-weight: 600; }
+.stat-v { font-weight: 800; font-size: 24px; color: var(--text); line-height: 1; }
+.stat-v.g { color: var(--green); }
+.stat-v.r { color: var(--red); }
+.stat-v.w { color: var(--warn); }
+.stat-v.b { color: var(--blue); }
+
+/* ── TABS — separación clara de secciones ── */
+.tabs {
+  background: #fff;
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  padding: 0 14px;
+  gap: 2px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  -webkit-overflow-scrolling: touch;
+}
+.tab {
+  padding: 12px 14px;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: .2px;
+  text-transform: uppercase;
+  color: var(--text3);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all .2s;
+  white-space: nowrap;
+}
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab:hover:not(.active) { color: var(--text2); background: var(--s2); border-radius: 6px 6px 0 0; }
+
+/* ── EMPTY ── */
+.empty { text-align: center; color: var(--text3); padding: 36px 20px; font-size: 14px; }
+
+/* ── TOAST ── */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2937;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  z-index: 9999;
+  display: none;
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+  white-space: nowrap;
+}
+#toast.show  { display: block; }
+#toast.err   { background: #dc2626; }
+#toast.ok    { background: #15803d; }
+
+/* ── CALENDARIO ── */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.cal-nav button {
+  background: #fff;
+  border: 2px solid var(--border);
+  color: var(--text2);
+  border-radius: 7px;
+  padding: 6px 13px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  transition: .15s;
+}
+.cal-nav button:hover { border-color: var(--accent); color: var(--accent); }
+.cal-nav-title { font-weight: 800; font-size: 16px; color: var(--text); }
+
+/* Vista botones mes/semana/día */
+.cal-view-btns {
+  display: flex;
+  gap: 2px;
+  background: var(--s2);
+  border-radius: 7px;
+  padding: 3px;
+  border: 1px solid var(--border);
+}
+.cal-view-btn {
+  padding: 5px 13px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--text3);
+  border: none;
+  background: transparent;
+  font-family: 'Inter', sans-serif;
+  transition: .15s;
+}
+.cal-view-btn.active {
+  background: #fff;
+  color: var(--accent);
+  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+}
+
+/* Grid mensual */
+.cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; margin-top: 8px; }
+.cal-head {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text3);
+  padding: 5px 0;
+}
+.cal-day {
+  min-height: 72px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px;
+  position: relative;
+  cursor: default;
+  transition: .15s;
+}
+.cal-day:hover { border-color: var(--accent); }
+.cal-day.today { border: 2px solid var(--accent); background: #fffbf0; }
+.cal-day.festivo { background: #fff8f8; }
+.cal-day.otro-mes { opacity: .35; }
+.cal-day-num { font-size: 12px; font-weight: 700; color: var(--text3); margin-bottom: 3px; }
+.cal-day.today .cal-day-num { color: var(--accent); }
+
+/* Grid semanal */
+.cal-week-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 6px; }
+.cal-week-col {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 200px;
+  box-shadow: var(--shadow);
+}
+.cal-week-head {
+  padding: 7px 8px;
+  border-bottom: 2px solid var(--border);
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text3);
+  background: var(--s2);
+}
+.cal-week-head.today { color: var(--accent); background: #fffbf0; }
+.cal-week-body { padding: 6px; display: flex; flex-direction: column; gap: 4px; min-height: 140px; }
+.cal-week-task {
+  font-size: 11px;
+  border-radius: 5px;
+  padding: 5px 7px;
+  cursor: pointer;
+  border-left: 3px solid;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.cal-week-task.hecha { text-decoration: line-through; opacity: .5; }
+.cal-week-add {
+  font-size: 11px;
+  color: var(--text3);
+  padding: 5px 6px;
+  cursor: pointer;
+  border-radius: 5px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  margin-top: 4px;
+  transition: .15s;
+  font-weight: 600;
+}
+.cal-week-add:hover { border-color: var(--accent); color: var(--accent); background: #fffbf0; }
+
+/* Vista diaria */
+.cal-day-full {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border-left: 4px solid var(--blue);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  box-shadow: var(--shadow);
+}
+.cal-day-full.hecha { opacity: .55; }
+
+/* Cal tarea chip mensual */
+.cal-tarea {
+  font-size: 10px;
+  background: rgba(217,119,6,.12);
+  color: var(--accent);
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  border-left: 2px solid var(--accent);
+  font-weight: 600;
+}
+
+/* ── COLOR DOTS ── */
+.color-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: .15s;
+  flex-shrink: 0;
+}
+.color-dot.sel { border-color: #111; box-shadow: 0 0 0 2px rgba(0,0,0,.2); }
+
+/* ── CALENDARIO LABORAL ── */
+.laboral-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid var(--border);
+  transition: .15s;
+  user-select: none;
+  color: var(--text);
+}
+.laboral-day:hover { border-color: var(--accent); background: #fffbf0; }
+.laboral-day.festivo { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+.laboral-day.finde   { background: var(--s2); color: var(--text3); cursor: default; }
+.laboral-day.otro-mes { opacity: .25; cursor: default; }
+.laboral-day.today   { border: 2px solid var(--accent); color: var(--accent); }
+
+/* ── DRAG ── */
+.cal-day.drag-over { border-color: var(--accent) !important; background: #fffbf0 !important; }
+
+@media(max-width:640px) {
+  html, body { font-size: 14px; }
+  .mosaic { max-width: 100%; }
+  .main { padding: 12px; }
+  th, td { padding: 8px 10px; font-size: 12px; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .cal-day { min-height: 48px; }
+  .cal-week-grid { grid-template-columns: repeat(7,1fr); gap: 3px; }
+  .cal-week-task { font-size: 9px; padding: 3px 4px; }
+  .btn-sm { padding: 6px 10px; }
+}
+
+/* ── MEJORAS ACCESIBILIDAD / TDAH ──
+   Focus ring muy visible para navegación con teclado */
+*:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+/* Separación clara entre cards de tareas pendientes vs hechas */
+.card.bl-g { opacity: .75; }
+/* Hoy destacado con punto naranja en listas */
+.hoy-label {
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 10px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+/* Botón de "marcar hecho" más grande y claro */
+.btn-hecho {
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 7px;
+  border: 2px solid;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  transition: .15s;
+}
+/* Sección actual activa — destacado visual extra en tabs */
+.tab.active {
+  background: #fffbf0;
+  border-radius: 6px 6px 0 0;
+}
+/* Input placeholder más visible */
+input::placeholder, textarea::placeholder { color: #9ca3af; font-style: italic; }
+/* Scroll suave */
+* { scroll-behavior: smooth; }
+/* Línea divisoria entre días en vista laboral */
+#laboralGrid .laboral-day { box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+
+</style>
+</head>
+<body>
+
+<!-- ═══ LOADING ═══ -->
+<div id="loadingOverlay" style="display:flex;position:fixed;inset:0;background:#fff;z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px">
+  <div style="font-size:32px">📋</div>
+  <div style="font-weight:800;font-size:16px;color:var(--accent)">Cargando...</div>
+</div>
+
+<!-- ═══ HOME ═══ -->
+<div class="screen active" id="screenHome">
+  <div style="background:#fff;border-bottom:2px solid var(--border);padding:12px 16px;display:flex;align-items:center;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.08)">
+    <button class="back-btn" onclick="window.close()" title="Volver a BLMX">←</button>
+    <div>
+      <div style="font-weight:900;font-size:17px;color:var(--accent)">Planificación Adm.</div>
+      <div style="font-size:11px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.1px" id="homeUserLabel">Cargando...</div>
+    </div>
+    <div id="alertasBanner" style="margin-left:auto;display:none">
+      <span id="alertasBadge" style="background:var(--red);color:#fff;font-weight:800;font-size:11px;padding:3px 9px;border-radius:10px;cursor:pointer" onclick="goScreen('screenRenovDocs')">⚠️ <span id="alertasBadgeNum">0</span> avisos</span>
+    </div>
+  </div>
+  <div class="main" style="padding-top:20px">
+    <!-- Avisos urgentes -->
+    <div id="homeAlertas" style="margin-bottom:12px"></div>
+    <!-- Mosaico -->
+    <div class="mosaic">
+      <button class="mosaic-btn accent" onclick="goScreen('screenPlanDiaria')">
+        <span class="mosaic-icon">📅</span>
+        <div class="mosaic-label">Planificación<br>Diaria</div>
+        <div class="mosaic-sub">Calendario de tareas</div>
+      </button>
+      <button class="mosaic-btn" onclick="goScreen('screenProveedores')">
+        <span class="mosaic-badge" id="badgeProveedores" style="display:none">0</span>
+        <span class="mosaic-icon">💳</span>
+        <div class="mosaic-label">Previsión Pago<br>Proveedores</div>
+        <div class="mosaic-sub">Facturas pendientes</div>
+      </button>
+      <button class="mosaic-btn" onclick="goScreen('screenVencFacturas')">
+        <span class="mosaic-badge" id="badgeFacturas" style="display:none">0</span>
+        <span class="mosaic-icon">🧾</span>
+        <div class="mosaic-label">Vencimientos<br>Facturas</div>
+        <div class="mosaic-sub">Control cobros</div>
+      </button>
+      <button class="mosaic-btn" onclick="goScreen('screenDietasVal')">
+        <span class="mosaic-icon">🍽️</span>
+        <div class="mosaic-label">Dietas<br>Validación</div>
+        <div class="mosaic-sub">Remesas nómina</div>
+      </button>
+      <button class="mosaic-btn" onclick="goScreen('screenVehiculos')">
+        <span class="mosaic-badge" id="badgeVehiculos" style="display:none">0</span>
+        <span class="mosaic-icon">🚐</span>
+        <div class="mosaic-label">Vehículos</div>
+        <div class="mosaic-sub">ITV · Seguros · Mant.</div>
+      </button>
+      <button class="mosaic-btn" onclick="goScreen('screenSeguros')">
+        <span class="mosaic-badge" id="badgeSeguros" style="display:none">0</span>
+        <span class="mosaic-icon">🛡️</span>
+        <div class="mosaic-label">Seguros</div>
+        <div class="mosaic-sub">Pólizas · Siniestros</div>
+      </button>
+      <button class="mosaic-btn" style="grid-column:span 2" onclick="goScreen('screenRenovDocs')">
+        <span class="mosaic-icon">🔄</span>
+        <div class="mosaic-label">Renovación de Documentos</div>
+        <div class="mosaic-sub">DNI · Carnets · PRL · Reconocimientos</div>
+        <span class="mosaic-badge" id="renovBadge" style="display:none">0</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     PLANIFICACIÓN DIARIA
+═══════════════════════════════════════ -->
+<div class="screen" id="screenPlanDiaria">
+  <div class="topbar">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <span class="topbar-title">📅 Planificación Diaria</span>
+    <div style="display:flex;gap:5px;flex-shrink:0">
+      <button class="btn btn-purple btn-sm" onclick="abrirTabPlan('categorias')">🏷️ Cat.</button>
+      <button class="btn btn-primary btn-sm" onclick="openModalAsignarTarea()">+ Asignar</button>
+    </div>
+  </div>
+  <div class="tabs" id="planTabs">
+    <div class="tab active" data-tab="calendario" onclick="abrirTabPlan('calendario')">Calendario</div>
+    <div class="tab" data-tab="tareas" onclick="abrirTabPlan('tareas')">Asignadas</div>
+    <div class="tab" data-tab="catalogo" onclick="abrirTabPlan('catalogo')">Catálogo</div>
+    <div class="tab" data-tab="laboral" onclick="abrirTabPlan('laboral')">Cal. Laboral</div>
+    <div class="tab" data-tab="categorias" onclick="abrirTabPlan('categorias')">Categorías</div>
+  </div>
+  <div class="main">
+    <!-- CALENDARIO -->
+    <div id="planPanel-calendario">
+      <div class="cal-nav">
+        <button onclick="calNav(-1)">◀</button>
+        <span class="cal-nav-title" id="calTitulo"></span>
+        <button onclick="calNav(1)">▶</button>
+        <div class="cal-view-btns">
+          <button class="cal-view-btn active" id="calViewBtn-mes" onclick="setCalView('mes')">Mes</button>
+          <button class="cal-view-btn" id="calViewBtn-semana" onclick="setCalView('semana')">Semana</button>
+          <button class="cal-view-btn" id="calViewBtn-dia" onclick="setCalView('dia')">Día</button>
+        </div>
+        <button onclick="calHoy()" style="background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:5px;padding:5px 9px;cursor:pointer;font-size:11px;font-weight:700">Hoy</button>
+      </div>
+      <div id="calStats" class="stats" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px"></div>
+      <div id="calContainer"></div>
+    </div>
+    <!-- TAREAS ASIGNADAS -->
+    <div id="planPanel-tareas" style="display:none">
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary btn-sm" onclick="openModalAsignarTarea()">+ Asignar</button>
+        <select id="filtroTareasEstado" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 10px;font-size:12px" onchange="renderTareasAsignadas()">
+          <option value="todas">Todas</option>
+          <option value="pendiente">Pendientes</option>
+          <option value="hecha">Hechas</option>
+        </select>
+        <select id="filtroTareasCat" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 10px;font-size:12px" onchange="renderTareasAsignadas()">
+          <option value="todas">Todas las categorías</option>
+        </select>
+      </div>
+      <div id="tareasAsignadasList"></div>
+    </div>
+    <!-- CATÁLOGO -->
+    <div id="planPanel-catalogo" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
+        <div class="stitle" style="margin:0"><div class="stitle-bar"></div>Catálogo de Tareas</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-green btn-sm" onclick="exportarCatalogoExcel()">📥 Exportar</button>
+          <label class="btn btn-blue btn-sm" style="cursor:pointer;margin:0" title="Importar desde Excel">
+            📤 Importar
+            <input type="file" id="importCatalogoInput" accept=".xlsx,.xls" style="display:none" onchange="importarCatalogoExcel(this)">
+          </label>
+          <button class="btn btn-primary btn-sm" onclick="openModalNuevaTareaCat()">+ Nueva tarea</button>
+        </div>
+      </div>
+      <div id="catalogoList"></div>
+    </div>
+    <!-- CAL LABORAL -->
+    <div id="planPanel-laboral" style="display:none">
+      <div class="form-card">
+        <div class="stitle"><div class="stitle-bar"></div>Calendario Laboral — Click para marcar/desmarcar festivo</div>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:10px">Haz click en un día para marcarlo festivo. Vuelve a hacer click para desmarcarlo.</p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <button onclick="laboralMes(-1)" style="background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:5px;padding:5px 10px;cursor:pointer">◀</button>
+          <span style="font-weight:800;font-size:14px;color:var(--text);flex:1;text-align:center" id="laboralTitulo"></span>
+          <button onclick="laboralMes(1)" style="background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:5px;padding:5px 10px;cursor:pointer">▶</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px">
+          <div style="text-align:center;font-size:9px;font-weight:700;color:var(--text3);padding:3px">Lu</div>
+          <div style="text-align:center;font-size:9px;font-weight:700;color:var(--text3);padding:3px">Ma</div>
+          <div style="text-align:center;font-size:9px;font-weight:700;color:var(--text3);padding:3px">Mi</div>
+          <div style="text-align:center;font-size:9px;font-weight:700;color:var(--text3);padding:3px">Ju</div>
+          <div style="text-align:center;font-size:9px;font-weight:700;color:var(--text3);padding:3px">Vi</div>
+          <div style="text-align:center;font-size:9px;font-weight:700;color:var(--warn);padding:3px">Sá</div>
+          <div style="text-align:center;font-size:9px;font-weight:700;color:var(--warn);padding:3px">Do</div>
+        </div>
+        <div id="laboralGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+        <div id="laboralFestivosList" style="margin-top:12px"></div>
+      </div>
+    </div>
+    <!-- CATEGORÍAS -->
+    <div id="planPanel-categorias" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div class="stitle" style="margin:0"><div class="stitle-bar"></div>Categorías de Tareas</div>
+        <button class="btn btn-primary btn-sm" onclick="openModalCategoria()">+ Nueva categoría</button>
+      </div>
+      <div id="categoriasList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     PREVISIÓN PAGO PROVEEDORES
+═══════════════════════════════════════ -->
+<div class="screen" id="screenProveedores">
+  <div class="topbar">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <span class="topbar-title">💳 Previsión Pago Proveedores</span>
+    <div style="display:flex;gap:5px;flex-shrink:0">
+      <button class="btn btn-green btn-sm" onclick="exportarProveedoresExcel()">📊 Excel</button>
+      <button class="btn btn-primary btn-sm" onclick="openModalProveedor()">+ Añadir</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="stats" id="statsProveedores"></div>
+    <!-- Grupos agrupados por proveedor + fecha -->
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <select id="filtroProvEstado" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 10px;font-size:12px" onchange="renderProveedores()">
+        <option value="todos">Todos</option>
+        <option value="pendiente">Pendientes</option>
+        <option value="programada">Transferencia programada</option>
+        <option value="pagado">Pagadas</option>
+      </select>
+      <input type="text" id="filtroProvTexto" placeholder="🔍 Buscar..." style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 10px;font-size:13px;flex:1;min-width:120px" oninput="renderProveedores()">
+    </div>
+    <div id="proveedoresGrupos"></div>
+    <!-- Tabla detalle completa -->
+    <div class="stitle" style="margin-bottom:8px"><div class="stitle-bar"></div>Detalle completo</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>PROVEEDOR</th><th>Nº FACTURA</th><th>VENCIMIENTO</th><th>IMPORTE</th><th>F. TRANSF.</th><th title="Programada">🔵</th><th title="Pagado">✅</th><th></th>
+        </tr></thead>
+        <tbody id="proveedoresTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     VENCIMIENTOS FACTURAS
+═══════════════════════════════════════ -->
+<div class="screen" id="screenVencFacturas">
+  <div class="topbar">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <span class="topbar-title">🧾 Vencimientos de Facturas</span>
+    <div style="display:flex;gap:5px;flex-shrink:0">
+      <button class="btn btn-green btn-sm" onclick="exportarFacturasExcel()">📊 Excel</button>
+      <button class="btn btn-primary btn-sm" onclick="openModalFactura()">+ Añadir</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="stats" id="statsFacturas"></div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <input type="text" id="filtroFacturaTexto" placeholder="🔍 Buscar cliente, obra, factura..." style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 10px;font-size:13px;flex:1;min-width:140px" oninput="renderFacturas()">
+      <select id="filtroFacturaEstado" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 10px;font-size:13px" onchange="renderFacturas()">
+        <option value="todas">Todas</option>
+        <option value="pendiente">Pendiente cobro</option>
+        <option value="vencida">Vencidas</option>
+        <option value="cobrada">Cobradas</option>
+      </select>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Nº FACTURA</th><th>CLIENTE</th><th>OBRA</th><th>IMPORTE</th><th>VENCIMIENTO</th><th>COBRADO</th><th>F. COBRO</th><th>NOTA</th><th></th>
+        </tr></thead>
+        <tbody id="facturasTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     DIETAS VALIDACIÓN
+═══════════════════════════════════════ -->
+<div class="screen" id="screenDietasVal">
+  <div class="topbar">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <span class="topbar-title">🍽️ Dietas · Validación</span>
+    <button class="btn btn-primary btn-sm" onclick="openModalNuevaRemesa()">+ Nueva remesa</button>
+  </div>
+  <div class="main">
+    <!-- Filtros remesas -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <select id="filtroRemesaTrab" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 10px;font-size:13px;flex:1" onchange="renderRemesas()">
+        <option value="todos">Todos los trabajadores</option>
+      </select>
+      <input type="month" id="filtroRemesaMes" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 10px;font-size:13px" onchange="renderRemesas()">
+    </div>
+    <div id="remesasList"></div>
+  </div>
+</div>
+
+<!-- DETALLE REMESA (sub-pantalla) -->
+<div class="screen" id="screenDetalleRemesa">
+  <div class="topbar">
+    <button class="back-btn" onclick="goScreen('screenDietasVal')">←</button>
+    <span class="topbar-title" id="detalleRemesaTitulo">Remesa</span>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-ghost btn-sm" id="btnExportRemesa" onclick="exportarRemesa()">📊 Excel</button>
+      <button class="btn btn-primary btn-sm" id="btnCerrarRemesa" onclick="cerrarRemesa()">🔒 Cerrar remesa</button>
+      <button class="btn btn-warn btn-sm" id="btnDeshacerRemesa" style="display:none" onclick="deshacerCierreRemesa()">↩ Reabrir</button>
+    </div>
+  </div>
+  <div class="main">
+    <div id="detalleRemesaStats" class="stats"></div>
+    <div id="detalleRemesaDesglose" class="form-card" style="margin-bottom:12px"></div>
+    <div class="stitle"><div class="stitle-bar"></div>Tickets pendientes de validar</div>
+    <div id="detalleRemesaTickets"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     VEHÍCULOS
+═══════════════════════════════════════ -->
+<div class="screen" id="screenVehiculos">
+  <div class="topbar">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <span class="topbar-title">🚐 Vehículos</span>
+    <button class="btn btn-primary btn-sm" onclick="openModalVehiculo()">+ Añadir</button>
+  </div>
+  <div class="main">
+    <div id="vehiculosList"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     SEGUROS
+═══════════════════════════════════════ -->
+<div class="screen" id="screenSeguros">
+  <div class="topbar">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <span class="topbar-title">🛡️ Seguros</span>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-ghost btn-sm" onclick="setTabSeguros('siniestros')">⚠️ Siniestros</button>
+      <button class="btn btn-primary btn-sm" onclick="openModalSeguro()">+ Póliza</button>
+    </div>
+  </div>
+  <div class="tabs" id="segurosTabs">
+    <div class="tab active" data-tab="polizas" onclick="setTabSeguros('polizas')">Pólizas</div>
+    <div class="tab" data-tab="siniestros" onclick="setTabSeguros('siniestros')">Siniestros</div>
+  </div>
+  <div class="main">
+    <div id="segurosPanel-polizas"><div id="polizasList"></div></div>
+    <div id="segurosPanel-siniestros" style="display:none">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="btn btn-warn btn-sm" onclick="openModalSiniestro()">+ Siniestro</button>
+      </div>
+      <div id="siniestrosList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     RENOVACIÓN DE DOCUMENTOS
+═══════════════════════════════════════ -->
+<div class="screen" id="screenRenovDocs">
+  <div class="topbar">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <span class="topbar-title">🔄 Renovación de Documentos</span>
+    <button class="btn btn-primary btn-sm" onclick="openModalDocumento()">+ Añadir</button>
+  </div>
+  <div class="main">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <select id="filtroDocPersona" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 10px;font-size:13px;flex:1" onchange="renderDocumentos()">
+        <option value="todos">Todas las personas</option>
+      </select>
+      <select id="filtroDocTipo" style="background:#fff;border:1px solid var(--border);color:var(--text);border-radius:5px;padding:7px 10px;font-size:13px" onchange="renderDocumentos()">
+        <option value="todos">Todos los tipos</option>
+        <option value="DNI">DNI</option>
+        <option value="Carnet conducir">Carnet conducir</option>
+        <option value="Tarjeta sanitaria europea">Tarjeta sanitaria europea</option>
+        <option value="PRL Convenio">PRL Convenio</option>
+        <option value="Reconocimiento médico">Reconocimiento médico</option>
+        <option value="ITV">ITV Vehículo</option>
+        <option value="Seguro">Seguro</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+    <div id="documentosList"></div>
+  </div>
+</div>
+
+
+
+
+<!-- ═══ MODALES ═══ -->
+<!-- Modal: Tarea Catálogo -->
+<div class="overlay" id="modalTareaCat">
+  <div class="modal">
+    <h3>📚 Tarea Catálogo</h3>
+    <input type="hidden" id="tcId">
+    <input type="hidden" id="tcPdfUrlGuardada">
+    <input type="hidden" id="tcPdfNombreGuardado">
+    <input type="hidden" id="tcPdfBase64Guardada">
+    <div class="frow"><div class="fg"><label>Nombre *</label><input type="text" id="tcNombre" placeholder="Nombre de la tarea"></div></div>
+    <div class="fg" style="margin-bottom:12px"><label>Descripción / Instrucciones</label><textarea id="tcDesc" placeholder="Pasos, instrucciones..." rows="3"></textarea></div>
+    <div class="frow">
+      <div class="fg"><label>Categoría</label>
+        <select id="tcCategoria"><option value="">Sin categoría</option></select>
+      </div>
+      <div class="fg"><label>Periodicidad</label>
+        <select id="tcPeriodicidad">
+          <option value="diaria">Diaria</option><option value="semanal">Semanal</option>
+          <option value="mensual">Mensual</option><option value="trimestral">Trimestral</option>
+          <option value="anual">Anual</option><option value="manual">Manual / Puntual</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Tiempo estimado (min)</label><input type="number" id="tcTiempo" min="5" step="5" placeholder="30"></div>
+    <div style="margin-bottom:12px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.2px;color:var(--text3);margin-bottom:6px">📄 PDF de instrucciones (opcional)</div>
+      <div id="tcPdfActualRow" style="display:none;background:var(--s2);border-radius:6px;padding:8px 10px;border:1px solid var(--border);margin-bottom:6px;font-size:12px;align-items:center;gap:8px"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="background:var(--s2);border:1px solid var(--border);color:var(--text2);border-radius:5px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px">
+          📎 Subir PDF
+          <input type="file" id="tcPdfInput" accept=".pdf" style="display:none" onchange="onTcPdfChange(this)">
+        </label>
+        <span id="tcPdfLabel" style="font-size:12px;color:var(--text3)">Sin archivo</span>
+        <button id="tcPdfBorrar" class="btn btn-danger btn-xs" style="display:none" onclick="borrarPdfTareaCat()">✕ Quitar</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalTareaCat')">Cancelar</button>
+      <button class="btn btn-primary" id="btnSaveTareaCat" onclick="saveTareaCat()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Categoría -->
+<div class="overlay" id="modalCategoria">
+  <div class="modal" style="max-width:400px">
+    <h3>🏷️ Categoría</h3>
+    <input type="hidden" id="catId">
+    <div class="fg" style="margin-bottom:12px"><label>Nombre *</label><input type="text" id="catNombre" placeholder="Ej: Contabilidad, RRHH..."></div>
+    <div class="fg" style="margin-bottom:12px">
+      <label>Color</label>
+      <div id="catColorDots" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px"></div>
+      <input type="hidden" id="catColor" value="#5b9cf6">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalCategoria')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCategoria()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Festivo -->
+<div class="overlay" id="modalFestivo">
+  <div class="modal" style="max-width:420px">
+    <h3>🗓️ Marcar festivo / vacaciones</h3>
+    <input type="hidden" id="festivoFechaInput">
+    <div id="festivoFechaLabel" style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:12px;background:var(--s2);border-radius:6px;padding:8px 10px;border:1px solid var(--border)"></div>
+    <div class="frow" style="margin-bottom:12px">
+      <div class="fg"><label>Hasta (opcional — rango)</label><input type="date" id="festivoFechaFin" placeholder="Dejar vacío para un solo día" onchange="updateFestivoLabel()"></div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Motivo (opcional)</label><input type="text" id="festivoMotivoInput" placeholder="Ej: Festivo local, Vacaciones verano..."></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalFestivo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarFestivo()">✅ Marcar</button>
+    </div>
+  </div>
+</div>
+<!-- Modal: Asignar Tarea -->
+<div class="overlay" id="modalAsignarTarea">
+  <div class="modal">
+    <h3>📌 Asignar Tarea</h3>
+    <div class="fg" style="margin-bottom:12px"><label>Tarea del catálogo *</label>
+      <select id="asigTareaId" onchange="onChangeTareaCat()">
+        <option value="">— Selecciona —</option>
+      </select>
+    </div>
+    <div id="asigTareaPreview" style="display:none;background:var(--s2);border-radius:6px;padding:10px;margin-bottom:12px;font-size:12px;color:var(--text2)"></div>
+    <div class="frow">
+      <div class="fg"><label>Fecha prevista *</label><input type="date" id="asigFecha"></div>
+      <div class="fg"><label>Prioridad</label>
+        <select id="asigPrioridad">
+          <option value="normal">Normal</option>
+          <option value="alta">Alta</option>
+          <option value="baja">Baja</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Nota adicional</label><textarea id="asigNota" placeholder="Opcional..." rows="2"></textarea></div>
+    <label class="chk-row"><input type="checkbox" id="asigRecurrente"> Configurar recurrencia automática</label>
+    <div id="asigRecurrenteOpts" style="display:none;background:var(--s2);border-radius:6px;padding:10px;margin-bottom:12px">
+      <div class="frow">
+        <div class="fg"><label>Repetir</label>
+          <select id="asigRepetir">
+            <option value="mensual">Mensual</option>
+            <option value="trimestral">Trimestral (abr/jul/oct/ene)</option>
+            <option value="semanal">Semanal</option>
+          </select>
+        </div>
+        <div class="fg"><label>Día del mes</label><input type="number" id="asigDiaMes" min="1" max="28" placeholder="20"></div>
+      </div>
+      <p style="font-size:11px;color:var(--text3)">Si cae en sábado/domingo/festivo → se mueve al viernes anterior hábil</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalAsignarTarea')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAsignarTarea()">📌 Asignar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editar tarea asignada -->
+<div class="overlay" id="modalEditTarea">
+  <div class="modal">
+    <h3>✏️ Tarea</h3>
+    <input type="hidden" id="etId">
+    <div id="etHeader" style="background:var(--s2);border-radius:6px;padding:10px;margin-bottom:12px;font-size:13px;font-weight:700;color:var(--text)"></div>
+    <div class="frow">
+      <div class="fg"><label>Fecha</label><input type="date" id="etFecha"></div>
+      <div class="fg"><label>Prioridad</label>
+        <select id="etPrioridad">
+          <option value="normal">Normal</option>
+          <option value="alta">Alta</option>
+          <option value="baja">Baja</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Nota</label><textarea id="etNota" rows="2"></textarea></div>
+    <div id="etPdfLink" style="display:none;margin-bottom:10px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm" onclick="deleteTareaAsignada(document.getElementById('etId').value)">🗑 Eliminar</button>
+      <button class="btn btn-ghost" onclick="closeModal('modalEditTarea')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEditTarea()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Proveedor -->
+<div class="overlay" id="modalProveedor">
+  <div class="modal">
+    <h3>💳 Factura Proveedor</h3>
+    <input type="hidden" id="provId">
+    <div class="frow">
+      <div class="fg"><label>Proveedor *</label><input type="text" id="provNombre" list="listProveedoresExist" placeholder="Nombre proveedor"><datalist id="listProveedoresExist"></datalist></div>
+      <div class="fg"><label>Nº Factura</label><input type="text" id="provNFactura" placeholder="F-2024-001"></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label>Fecha vencimiento *</label><input type="date" id="provVencimiento"></div>
+      <div class="fg"><label>Importe (€) *</label><input type="number" id="provImporte" step="0.01" placeholder="0.00 (negativo=abono)"></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label>Fecha transferencia</label><input type="date" id="provFechaTransf"></div>
+      <div class="fg"><label>Notas</label><input type="text" id="provNota" placeholder="Opcional"></div>
+    </div></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalProveedor')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProveedor()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Factura cliente -->
+<div class="overlay" id="modalFactura">
+  <div class="modal">
+    <h3>🧾 Factura Cliente</h3>
+    <input type="hidden" id="facId">
+    <div class="frow">
+      <div class="fg"><label>Nº Factura *</label><input type="text" id="facNFactura" placeholder="F-2024-001"></div>
+      <div class="fg"><label>Cliente *</label><input type="text" id="facCliente" list="listClientesExist" placeholder="Nombre cliente"><datalist id="listClientesExist"></datalist></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label>Obra</label><input type="text" id="facObra" placeholder="Nombre obra"></div>
+      <div class="fg"><label>Importe (€)</label><input type="number" id="facImporte" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label>Vencimiento *</label><input type="date" id="facVencimiento"></div>
+      <div class="fg"><label>F. Cobro</label><input type="date" id="facFechaCobro"></div>
+    </div>
+    <label class="chk-row"><input type="checkbox" id="facCobrada" onchange="toggleCobradaModal()"> Cobrada</label>
+    <div class="fg" style="margin-bottom:12px"><label>Nota (confirming, banco...)</label><input type="text" id="facNota" placeholder="Ej: Confirming Banco Sabadell vto 15/03"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalFactura')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveFactura()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nueva Remesa -->
+<div class="overlay" id="modalNuevaRemesa">
+  <div class="modal">
+    <h3>🍽️ Nueva Remesa Dietas</h3>
+    <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Se cargará con todos los tickets pendientes de validar del trabajador.</p>
+    <div class="frow">
+      <div class="fg"><label>Trabajador *</label>
+        <select id="remesaTrabajador"><option value="">— Selecciona —</option></select>
+      </div>
+      <div class="fg"><label>Mes nómina *</label><input type="month" id="remesaMes"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalNuevaRemesa')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveNuevaRemesa()">📋 Crear remesa</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Rechazar ticket -->
+<div class="overlay" id="modalRechazarTicket">
+  <div class="modal">
+    <h3 style="color:var(--red)">❌ Rechazar ticket</h3>
+    <input type="hidden" id="rechazarTicketId">
+    <p id="rechazarTicketInfo" style="font-size:13px;color:var(--text2);margin-bottom:12px"></p>
+    <div class="fg" style="margin-bottom:12px"><label>Motivo del rechazo *</label>
+      <textarea id="rechazarMotivo" rows="3" placeholder="Explica el motivo... Ej: Foto ilegible, sube mejor imagen"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalRechazarTicket')">Cancelar</button>
+      <button class="btn btn-danger" onclick="confirmarRechazar()">❌ Rechazar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Corregir importe -->
+<div class="overlay" id="modalCorregirImporte">
+  <div class="modal">
+    <h3 style="color:var(--warn)">✏️ Corregir importe</h3>
+    <input type="hidden" id="corregirTicketId">
+    <p id="corregirTicketInfo" style="font-size:13px;color:var(--text2);margin-bottom:12px"></p>
+    <div class="fg" style="margin-bottom:12px"><label>Nuevo importe (€) *</label>
+      <input type="number" id="corregirImporte" step="0.01" placeholder="0.00">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalCorregirImporte')">Cancelar</button>
+      <button class="btn btn-warn" onclick="confirmarCorregir()">✏️ Corregir</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Vehículo -->
+<div class="overlay" id="modalVehiculo">
+  <div class="modal" style="max-width:560px">
+    <h3>🚐 Vehículo</h3>
+    <input type="hidden" id="vehId">
+    <div class="frow">
+      <div class="fg"><label>Matrícula *</label><input type="text" id="vehMatricula" placeholder="AB-1234-CD"></div>
+      <div class="fg"><label>Marca / Modelo</label><input type="text" id="vehModelo" placeholder="Ford Transit"></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label>Trabajador asignado</label><input type="text" id="vehTrabajador" list="listTrabVeh" placeholder="Nombre"><datalist id="listTrabVeh"></datalist></div>
+      <div class="fg"><label>Estado</label>
+        <select id="vehEstado">
+          <option value="activo">Activo</option>
+          <option value="baja">Baja</option>
+        </select>
+      </div>
+    </div>
+    <div style="font-weight:700;font-size:11px;color:var(--accent);text-transform:uppercase;margin:8px 0 6px">ITV</div>
+    <div class="frow">
+      <div class="fg"><label>Próxima ITV</label><input type="date" id="vehITV"></div>
+      <div class="fg"><label>Aviso (días antes)</label><input type="number" id="vehITVAviso" value="30" min="1" max="365"></div>
+    </div>
+    <div style="font-weight:700;font-size:11px;color:var(--accent);text-transform:uppercase;margin:8px 0 6px">Seguro</div>
+    <div class="frow">
+      <div class="fg"><label>Compañía</label><input type="text" id="vehSegCompania" placeholder="Mapfre, Zurich..."></div>
+      <div class="fg"><label>Nº Póliza</label><input type="text" id="vehSegPoliza" placeholder="POL-001"></div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Renovación seguro</label><input type="date" id="vehSegRenovacion"></div>
+    <div class="fg" style="margin-bottom:12px"><label>Notas</label><textarea id="vehNotas" rows="2" placeholder="Observaciones..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalVehiculo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveVehiculo()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Mantenimiento vehículo -->
+<div class="overlay" id="modalMantenimiento">
+  <div class="modal">
+    <h3>🔧 Mantenimiento</h3>
+    <input type="hidden" id="mantVehId">
+    <input type="hidden" id="mantId">
+    <div class="frow">
+      <div class="fg"><label>Fecha *</label><input type="date" id="mantFecha"></div>
+      <div class="fg"><label>Tipo *</label>
+        <select id="mantTipo">
+          <option value="Cambio aceite">Cambio aceite</option>
+          <option value="Cambio ruedas">Cambio ruedas</option>
+          <option value="Revisión">Revisión general</option>
+          <option value="Avería">Avería / Reparación</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Descripción</label><textarea id="mantDesc" rows="2" placeholder="Detalles del mantenimiento..."></textarea></div>
+    <div class="fg" style="margin-bottom:12px"><label>Coste (€)</label><input type="number" id="mantCoste" step="0.01" placeholder="0.00"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalMantenimiento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMantenimiento()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Seguro póliza -->
+<div class="overlay" id="modalSeguro">
+  <div class="modal">
+    <h3>🛡️ Póliza de Seguro</h3>
+    <input type="hidden" id="segId">
+    <div class="frow">
+      <div class="fg"><label>Tipo de seguro *</label>
+        <select id="segTipo">
+          <option value="Responsabilidad Civil">Responsabilidad Civil</option>
+          <option value="Vehículo">Vehículo</option>
+          <option value="Accidentes convenio">Accidentes convenio</option>
+          <option value="Incendios / Continente">Incendios / Continente</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div class="fg"><label>Compañía *</label><input type="text" id="segCompania" placeholder="Mapfre, Zurich..."></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label>Nº Póliza</label><input type="text" id="segPoliza" placeholder="POL-001"></div>
+      <div class="fg"><label>Vencimiento *</label><input type="date" id="segVencimiento"></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label>Aviso (días antes)</label><input type="number" id="segAviso" value="30" min="1" max="365"></div>
+      <div class="fg"><label>Estado</label>
+        <select id="segEstado">
+          <option value="activa">Activa</option>
+          <option value="baja">Dada de baja</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Notas</label><textarea id="segNotas" rows="2" placeholder="Cobertura, vehículo asociado..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalSeguro')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSeguro()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Siniestro -->
+<div class="overlay" id="modalSiniestro">
+  <div class="modal">
+    <h3 style="color:var(--warn)">⚠️ Siniestro</h3>
+    <input type="hidden" id="sinId">
+    <div class="frow">
+      <div class="fg"><label>Fecha *</label><input type="date" id="sinFecha"></div>
+      <div class="fg"><label>Póliza / Vehículo</label><input type="text" id="sinPoliza" placeholder="Nº póliza o matrícula"></div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Descripción *</label><textarea id="sinDesc" rows="3" placeholder="Descripción del siniestro..."></textarea></div>
+    <div class="fg" style="margin-bottom:12px"><label>Seguimiento / Estado</label><textarea id="sinSeguimiento" rows="2" placeholder="Estado actual, gestiones en curso..."></textarea></div>
+    <div class="frow">
+      <div class="fg"><label>Estado</label>
+        <select id="sinEstado">
+          <option value="en_curso">En curso</option>
+          <option value="cerrado">Cerrado</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalSiniestro')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSiniestro()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Documento renovación -->
+<div class="overlay" id="modalDocumento">
+  <div class="modal">
+    <h3>🔄 Documento / Formación</h3>
+    <input type="hidden" id="docId">
+    <div class="frow">
+      <div class="fg"><label>Tipo *</label>
+        <select id="docTipo" onchange="toggleDocTipoPersona()">
+          <option value="DNI">DNI</option>
+          <option value="Carnet conducir">Carnet conducir</option>
+          <option value="Tarjeta sanitaria europea">Tarjeta sanitaria europea</option>
+          <option value="PRL Convenio">PRL Convenio</option>
+          <option value="Reconocimiento médico">Reconocimiento médico</option>
+          <option value="ITV">ITV Vehículo</option>
+          <option value="Seguro">Seguro</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div class="fg" id="docPersonaFg"><label>Persona / Vehículo *</label>
+        <input type="text" id="docPersona" list="listPersonasDoc" placeholder="Nombre o matrícula">
+        <datalist id="listPersonasDoc"></datalist>
+      </div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label>Fecha vencimiento *</label><input type="date" id="docVencimiento"></div>
+      <div class="fg"><label>Avisar (días antes) *</label><input type="number" id="docAviso" value="30" min="1" max="365"></div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label>Notas</label><input type="text" id="docNotas" placeholder="Observaciones..."></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalDocumento')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveDocumento()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Renovar documento -->
+<div class="overlay" id="modalRenovarDoc">
+  <div class="modal">
+    <h3 style="color:var(--green)">✅ Renovar documento</h3>
+    <input type="hidden" id="renovDocId">
+    <p id="renovDocInfo" style="font-size:13px;color:var(--text2);margin-bottom:12px"></p>
+    <div class="frow">
+      <div class="fg"><label>Nuevo vencimiento *</label><input type="date" id="renovDocVencimiento"></div>
+      <div class="fg"><label>Avisar (días antes)</label><input type="number" id="renovDocAviso" min="1" max="365"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('modalRenovarDoc')">Cancelar</button>
+      <button class="btn btn-green" onclick="confirmarRenovacion()">✅ Renovar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ══════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════ -->
+
+<script>
+// ════════════════════════════════════════
+// FIREBASE CONFIG
+// ════════════════════════════════════════
+const FB_CONFIG = {
+  apiKey: "AIzaSyD2qkbCox7fltwWXiowUC3_KAJqmyX27N8",
+  databaseURL: "https://blmx-seguimiento-de-obra-default-rtdb.europe-west1.firebasedatabase.app"
+};
+if (!firebase.apps.length) firebase.initializeApp(FB_CONFIG);
+const DB_REF = firebase.database().ref('obra_db/planif_admin');
+const DRIVE_WORKER = 'https://blmx-drive-worker.balmulux.workers.dev';
+const GASTOS_REF = firebase.database().ref('obra_db/gastos');
+const TRAB_REF = firebase.database().ref('obra_db/trabajadores');
+
+// ════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════
+let DATA = {
+  categorias: [],
+  tareascatalogo: [],
+  tareasasignadas: [],
+  festivos: [],
+  proveedores: [],
+  facturas: [],
+  remesas: [],
+  vehiculos: [],
+  seguros: [],
+  siniestros: [],
+  documentos: []
+};
+let TRABAJADORES = [];
+let GASTOS_BLMX = [];
+let currentUser = null;
+let currentRemesaId = null;
+let currentTabSeguros = 'polizas';
+
+// ════════════════════════════════════════
+// SESIÓN
+// ════════════════════════════════════════
+function getSession() {
+  try { return JSON.parse(localStorage.getItem('obra_user_session') || 'null'); } catch(e) { return null; }
+}
+
+function checkAccess(session) {
+  if (!session) return false;
+  return ['admin','jefe','oficina','contabilidad'].includes(session.rol);
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+async function init() {
+  const session = getSession();
+  if (!session || !checkAccess(session)) {
+    document.getElementById('loadingOverlay').style.display = 'none';
+    document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#fff;color:#dc2626;font-family:Inter,sans-serif;font-size:16px;text-align:center;padding:20px">
+      ⛔ Acceso denegado.<br><span style="font-size:13px;color:#a0aab8;margin-top:8px;display:block">Debes iniciar sesión en BLMX OBRAS con rol Admin, Oficina o Contabilidad.</span>
+      <br><button onclick="window.close()" style="margin-top:16px;background:#f0a500;color:#111;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-weight:700">Cerrar</button></div>`;
+    return;
+  }
+  currentUser = session;
+  document.getElementById('homeUserLabel').textContent = session.nombre + ' · ' + (session.rol || '').toUpperCase();
+  document.title = 'BLMX · Planif. Administrativa';
+
+  // Cargar trabajadores
+  try {
+    const snap = await TRAB_REF.once('value');
+    const val = snap.val() || {};
+    TRABAJADORES = Object.values(val);
+    populateTrabajadoresSelects();
+  } catch(e) {}
+
+  // Cargar gastos BLMX (para dietas validación)
+  try {
+    const snapG = await GASTOS_REF.once('value');
+    GASTOS_BLMX = snapG.val() || [];
+    if (!Array.isArray(GASTOS_BLMX)) GASTOS_BLMX = Object.values(GASTOS_BLMX);
+  } catch(e) {}
+
+  // Listener tiempo real en planif_admin
+  DB_REF.on('value', snap => {
+    const val = snap.val() || {};
+    DATA.categorias = val.categorias || [];
+    DATA.tareascatalogo = val.tareascatalogo || [];
+    DATA.tareasasignadas = val.tareasasignadas || [];
+    DATA.festivos = val.festivos || [];
+    DATA.proveedores = val.proveedores || [];
+    DATA.facturas = val.facturas || [];
+    DATA.remesas = val.remesas || [];
+    DATA.vehiculos = val.vehiculos || [];
+    DATA.seguros = val.seguros || [];
+    DATA.siniestros = val.siniestros || [];
+    DATA.documentos = val.documentos || [];
+    refreshCurrentScreen();
+    updateAlertas();
+  });
+
+  document.getElementById('loadingOverlay').style.display = 'none';
+}
+
+function saveData(key, arr) {
+  return DB_REF.child(key).set(arr);
+}
+
+function uid() { return 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2,6); }
+function fmt(iso) {
+  if (!iso) return '—';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+function today() { const n=new Date(); return isoDate(n.getFullYear(),n.getMonth(),n.getDate()); }
+function addDays(iso, n) {
+  const [y,mo,d] = iso.split('-').map(Number);
+  const dt = new Date(y, mo-1, d+n); return isoDate(dt.getFullYear(), dt.getMonth(), dt.getDate());
+}
+function diffDays(iso) {
+  if (!iso) return null;
+  const now = new Date(); now.setHours(0,0,0,0);
+  const d = new Date(iso); d.setHours(0,0,0,0);
+  return Math.round((d - now) / 86400000);
+}
+function numFmt(n) {
+  return new Intl.NumberFormat('es-ES', { minimumFractionDigits:2, maximumFractionDigits:2 }).format(n||0);
+}
+
+// ════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════
+function goHome() { goScreen('screenHome'); }
+function goScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => { s.style.display='none'; s.classList.remove('active'); });
+  const s = document.getElementById(id);
+  if (s) { s.style.display='flex'; s.classList.add('active'); }
+  renderScreen(id);
+}
+function renderScreen(id) {
+  switch(id) {
+    case 'screenHome': updateAlertas(); break;
+    case 'screenPlanDiaria': abrirTabPlan('calendario'); break;
+    case 'screenProveedores': renderProveedores(); break;
+    case 'screenVencFacturas': renderFacturas(); break;
+    case 'screenDietasVal': renderRemesas(); break;
+    case 'screenVehiculos': renderVehiculos(); break;
+    case 'screenSeguros': renderSeguros(); break;
+    case 'screenRenovDocs': renderDocumentos(); break;
+  }
+}
+function refreshCurrentScreen() {
+  const active = document.querySelector('.screen.active');
+  if (active) renderScreen(active.id);
+}
+function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
+function openModal(id) { document.getElementById(id)?.classList.add('open'); }
+function toast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'show' + (type ? ' '+type : '');
+  clearTimeout(t._t); t._t = setTimeout(() => t.className='', 2800);
+}
+
+// ════════════════════════════════════════
+// ALERTAS GLOBALES
+// ════════════════════════════════════════
+function updateAlertas() {
+  const todayStr = today();
+  const alertas  = [];
+
+  // ── Qué vehículos ya están cubiertos por un doc ITV en Renovación Docs ──
+  // Cubierto = existe doc tipo ITV con autoRef === vehiculo.id
+  //            O bien doc tipo ITV cuya persona === vehiculo.matricula
+  const itvCubiertasPorId       = new Set();
+  const itvCubiertasPorMatricula= new Set();
+
+  (DATA.documentos||[]).forEach(d => {
+    if (d.tipo === 'ITV') {
+      if (d.autoRef)  itvCubiertasPorId.add(String(d.autoRef));
+      if (d.persona)  itvCubiertasPorMatricula.add((d.persona||'').trim().toUpperCase());
+    }
+  });
+
+  // ── Documentos → alertas ──
+  (DATA.documentos||[]).forEach(d => {
+    if (!d.vencimiento) return;
+    const diff  = diffDays(d.vencimiento);
+    const aviso = d.aviso || 30;
+    if (diff === null) return;
+    if (diff < 0) {
+      alertas.push({ nivel:'r', msg:`📄 ${d.tipo} de ${d.persona} VENCIDO`, screen:'screenRenovDocs' });
+    } else if (diff <= aviso) {
+      alertas.push({ nivel:'w', msg:`📄 ${d.tipo} de ${d.persona} — vence en ${diff}d`, screen:'screenRenovDocs' });
+    }
+  });
+
+  // ── Vehículos: ITV — solo si NO cubierta ya por Renovación Docs ──
+  (DATA.vehiculos||[]).forEach(v => {
+    if (!v.itv || v.estado === 'baja') return;
+    // Deduplicar por autoRef O por matrícula
+    const cubiertoPorId  = itvCubiertasPorId.has(String(v.id));
+    const cubiertoPorMat = itvCubiertasPorMatricula.has((v.matricula||'').trim().toUpperCase());
+    if (cubiertoPorId || cubiertoPorMat) return;
+    const diff  = diffDays(v.itv);
+    const aviso = v.itvAviso || 30;
+    if (diff === null) return;
+    if (diff < 0) {
+      alertas.push({ nivel:'r', msg:`🚐 ITV ${v.matricula} VENCIDA`, screen:'screenVehiculos' });
+    } else if (diff <= aviso) {
+      alertas.push({ nivel:'w', msg:`🚐 ITV ${v.matricula} — vence en ${diff}d`, screen:'screenVehiculos' });
+    }
+  });
+
+  // ── Seguros ──
+  (DATA.seguros||[]).forEach(s => {
+    if ((s.estado||'activa') === 'baja' || !s.vencimiento) return;
+    const diff  = diffDays(s.vencimiento);
+    const aviso = s.aviso || 30;
+    if (diff === null) return;
+    const veh   = s.vehiculoRef ? (DATA.vehiculos||[]).find(v => v.id === s.vehiculoRef) : null;
+    const label = veh
+      ? `🛡️ Seguro ${s.compania||''} (${veh.matricula})`
+      : `🛡️ ${s.tipo||'Seguro'} — ${s.compania||''}`;
+    if (diff < 0) {
+      alertas.push({ nivel:'r', msg:`${label} VENCIDO`, screen:'screenSeguros' });
+    } else if (diff <= aviso) {
+      alertas.push({ nivel:'w', msg:`${label} — vence en ${diff}d`, screen:'screenSeguros' });
+    }
+  });
+
+  // ── Siniestros abiertos ──
+  const sinAbiertos = (DATA.siniestros||[]).filter(s => s.estado === 'en_curso').length;
+  if (sinAbiertos > 0) alertas.push({ nivel:'w', msg:`⚠️ ${sinAbiertos} siniestro${sinAbiertos>1?'s':''} abierto${sinAbiertos>1?'s':''}`, screen:'screenSeguros' });
+
+  // ── Facturas vencidas ──
+  const facVencidas = (DATA.facturas||[]).filter(f => !f.cobrada && f.vencimiento < todayStr).length;
+  if (facVencidas > 0) alertas.push({ nivel:'r', msg:`🧾 ${facVencidas} factura${facVencidas>1?'s':''} vencida${facVencidas>1?'s':''} sin cobrar`, screen:'screenVencFacturas' });
+
+  // ── Badges mosaico ──
+  const setB = (id, n) => { const el=document.getElementById(id); if(!el)return; el.textContent=n; el.style.display=n>0?'':'none'; };
+  setB('badgeVehiculos',   alertas.filter(a=>a.screen==='screenVehiculos').length);
+  setB('badgeSeguros',     alertas.filter(a=>a.screen==='screenSeguros').length);
+  setB('badgeFacturas',    (DATA.facturas||[]).filter(f=>!f.cobrada&&f.vencimiento<todayStr).length);
+  setB('badgeProveedores', (DATA.proveedores||[]).filter(p=>!p.pagado).length);
+  setB('renovBadge',       alertas.filter(a=>a.screen==='screenRenovDocs').length);
+
+  // ── Badge contador top-right ──
+  const badgeNum = document.getElementById('alertasBadgeNum');
+  if (badgeNum) badgeNum.textContent = alertas.length;
+  const bannerEl = document.getElementById('alertasBanner');
+  if (bannerEl) bannerEl.style.display = alertas.length > 0 ? '' : 'none';
+
+  // ── Render alertas home ──
+  const homeAlertas = document.getElementById('homeAlertas');
+  if (!homeAlertas) return;
+  if (!alertas.length) { homeAlertas.innerHTML = ''; return; }
+  homeAlertas.innerHTML = alertas.map(a =>
+    `<div class="alert-banner ${a.nivel}" onclick="goScreen('${a.screen}')">${a.msg}</div>`
+  ).join('');
+}
+// ════════════════════════════════════════
+// POPULATE SELECTS
+// ════════════════════════════════════════
+function populateTrabajadoresSelects() {
+  const nombres = TRABAJADORES.map(t => t.nombre).sort();
+  // Remesa
+  const selRem = document.getElementById('remesaTrabajador');
+  if (selRem) {
+    selRem.innerHTML = '<option value="">— Selecciona —</option>' + nombres.map(n => `<option value="${n}">${n}</option>`).join('');
+  }
+  // Filtro remesas
+  const filtroR = document.getElementById('filtroRemesaTrab');
+  if (filtroR) {
+    filtroR.innerHTML = '<option value="todos">Todos los trabajadores</option>' + nombres.map(n => `<option value="${n}">${n}</option>`).join('');
+  }
+  // Vehículos
+  const listVeh = document.getElementById('listTrabVeh');
+  if (listVeh) listVeh.innerHTML = nombres.map(n => `<option value="${n}">`).join('');
+  // Documentos personas
+  const listDoc = document.getElementById('listPersonasDoc');
+  if (listDoc) listDoc.innerHTML = nombres.map(n => `<option value="${n}">`).join('');
+  // Filtro docs
+  const filtroDocP = document.getElementById('filtroDocPersona');
+  if (filtroDocP) {
+    filtroDocP.innerHTML = '<option value="todos">Todas las personas</option>' + nombres.map(n => `<option value="${n}">${n}</option>`).join('');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// PLANIFICACIÓN DIARIA
+// ════════════════════════════════════════════════════════
+const CAT_COLORS = ['#5b9cf6','#f0a500','#2ecc8a','#ff4d4d','#a78bfa','#f5c842','#2dd4bf','#ff8c69','#e879f9','#94a3b8'];
+let calView = 'mes';
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let calDay = new Date().getDate();
+let laboralYear = new Date().getFullYear();
+let laboralMonth = new Date().getMonth();
+let _dragTareaId = null;
+let _tcPdfFile = null;
+
+function abrirTabPlan(tab) {
+  document.querySelectorAll('#planTabs .tab').forEach(t => t.classList.remove('active'));
+  const t = document.querySelector(`#planTabs [data-tab="${tab}"]`); if(t) t.classList.add('active');
+  ['calendario','tareas','catalogo','laboral','categorias'].forEach(p => {
+    const el = document.getElementById('planPanel-'+p); if(el) el.style.display = p===tab ? '' : 'none';
+  });
+  if(tab==='calendario') renderCalendario();
+  if(tab==='tareas') { populateCatSelect(); renderTareasAsignadas(); }
+  if(tab==='catalogo') { populateCatSelect(); renderCatalogo(); }
+  if(tab==='laboral') renderLaboralGrid();
+  if(tab==='categorias') renderCategorias();
+}
+
+// ── CATEGORÍAS ──
+function initColorDots() {
+  const el = document.getElementById('catColorDots'); if(!el) return;
+  el.innerHTML = CAT_COLORS.map(c => `<div class="color-dot${c==='#5b9cf6'?' sel':''}" style="background:${c}" data-c="${c}" onclick="selectCatColor(this)"></div>`).join('');
+}
+function selectCatColor(el) {
+  document.querySelectorAll('#catColorDots .color-dot').forEach(d => d.classList.remove('sel'));
+  el.classList.add('sel');
+  document.getElementById('catColor').value = el.dataset.c;
+}
+function getCat(id) { return (DATA.categorias||[]).find(c => c.id===id); }
+function populateCatSelect() {
+  const sel = document.getElementById('tcCategoria');
+  if(sel) sel.innerHTML = '<option value="">Sin categoría</option>' + (DATA.categorias||[]).map(c => `<option value="${c.id}" style="color:${c.color}">${c.nombre}</option>`).join('');
+  const filtro = document.getElementById('filtroTareasCat');
+  if(filtro) filtro.innerHTML = '<option value="todas">Todas las categorías</option>' + (DATA.categorias||[]).map(c => `<option value="${c.id}">${c.nombre}</option>`).join('');
+}
+function openModalCategoria(id) {
+  const c = id ? (DATA.categorias||[]).find(x => x.id===id) : null;
+  document.getElementById('catId').value = c?.id||'';
+  document.getElementById('catNombre').value = c?.nombre||'';
+  document.getElementById('catColor').value = c?.color||'#5b9cf6';
+  initColorDots();
+  document.querySelectorAll('#catColorDots .color-dot').forEach(d => d.classList.toggle('sel', d.dataset.c===(c?.color||'#5b9cf6')));
+  openModal('modalCategoria');
+}
+async function saveCategoria() {
+  const nombre = document.getElementById('catNombre').value.trim();
+  if(!nombre) { toast('Introduce un nombre','err'); return; }
+  const id = document.getElementById('catId').value || uid();
+  const color = document.getElementById('catColor').value;
+  const arr = [...(DATA.categorias||[])];
+  const idx = arr.findIndex(x => x.id===id);
+  const item = {id, nombre, color};
+  if(idx>=0) arr[idx]=item; else arr.push(item);
+  await saveData('categorias', arr);
+  closeModal('modalCategoria');
+  toast('Categoría guardada','ok');
+}
+async function deleteCategoria(id) {
+  if(!confirm('¿Eliminar esta categoría?')) return;
+  await saveData('categorias', (DATA.categorias||[]).filter(x => x.id!==id));
+  toast('Eliminada');
+}
+function renderCategorias() {
+  const list = document.getElementById('categoriasList'); if(!list) return;
+  if(!(DATA.categorias||[]).length) { list.innerHTML='<div class="empty">Sin categorías. Crea la primera →</div>'; return; }
+  list.innerHTML = DATA.categorias.map(c => `
+    <div class="card" style="border-left:4px solid ${c.color};display:flex;align-items:center;gap:10px">
+      <div style="width:16px;height:16px;border-radius:50%;background:${c.color};flex-shrink:0"></div>
+      <div style="flex:1;font-weight:700;font-size:13px">${c.nombre}</div>
+      <button class="btn btn-ghost btn-xs" onclick="openModalCategoria('${c.id}')">✏️</button>
+      <button class="btn btn-danger btn-xs" onclick="deleteCategoria('${c.id}')">🗑</button>
+    </div>`).join('');
+}
+
+// ── CATÁLOGO ──
+function onTcPdfChange(input) {
+  const file = input.files[0]; if(!file) return;
+  _tcPdfFile = file;
+  document.getElementById('tcPdfLabel').textContent = file.name;
+  document.getElementById('tcPdfBorrar').style.display = '';
+}
+function borrarPdfTareaCat() {
+  _tcPdfFile = null;
+  document.getElementById('tcPdfUrlGuardada').value = '';
+  document.getElementById('tcPdfNombreGuardado').value = '';
+  const b64el = document.getElementById('tcPdfBase64Guardada'); if(b64el) b64el.value='';
+  document.getElementById('tcPdfLabel').textContent = 'Sin archivo';
+  document.getElementById('tcPdfBorrar').style.display = 'none';
+  document.getElementById('tcPdfActualRow').style.display = 'none';
+  document.getElementById('tcPdfInput').value = '';
+}
+function openModalNuevaTareaCat(id) {
+  _tcPdfFile = null;
+  const tc = id ? (DATA.tareascatalogo||[]).find(t => t.id===id) : null;
+  document.getElementById('tcId').value = tc?.id||'';
+  document.getElementById('tcNombre').value = tc?.nombre||'';
+  document.getElementById('tcDesc').value = tc?.desc||'';
+  document.getElementById('tcPeriodicidad').value = tc?.periodicidad||'mensual';
+  document.getElementById('tcTiempo').value = tc?.tiempo||'';
+  document.getElementById('tcPdfUrlGuardada').value = tc?.pdfUrl||'';
+  document.getElementById('tcPdfNombreGuardado').value = tc?.pdfNombre||'';
+  document.getElementById('tcPdfLabel').textContent = 'Sin archivo';
+  document.getElementById('tcPdfBorrar').style.display = 'none';
+  document.getElementById('tcPdfInput').value = '';
+  populateCatSelect();
+  document.getElementById('tcCategoria').value = tc?.categoriaId||'';
+  const row = document.getElementById('tcPdfActualRow');
+  const pdfHref = tc?.pdfUrl || tc?.pdfBase64 || null;
+  if(pdfHref) {
+    row.style.display = 'flex';
+    row.innerHTML = `📄 <a href="${pdfHref}" target="_blank" style="color:var(--blue);text-decoration:none;flex:1">${tc.pdfNombre||'Instrucciones.pdf'}</a><button class="btn btn-danger btn-xs" onclick="borrarPdfTareaCat()">✕</button>`;
+    document.getElementById('tcPdfBase64Guardada').value = tc?.pdfBase64||'';
+  } else { row.style.display = 'none'; document.getElementById('tcPdfBase64Guardada').value=''; }
+  openModal('modalTareaCat');
+}
+function fileToBase64(file) {
+  return new Promise((res,rej) => {
+    const reader = new FileReader();
+    reader.onload = () => res(reader.result); // data:application/pdf;base64,...
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+}
+async function saveTareaCat() {
+  const nombre = document.getElementById('tcNombre').value.trim();
+  if(!nombre) { toast('Introduce el nombre','err'); return; }
+  const id = document.getElementById('tcId').value || uid();
+  let pdfUrl = document.getElementById('tcPdfUrlGuardada').value || null;
+  let pdfNombre = document.getElementById('tcPdfNombreGuardado').value || null;
+  let pdfBase64 = document.getElementById('tcPdfBase64Guardada')?.value || null;
+  if(_tcPdfFile) {
+    const btn = document.getElementById('btnSaveTareaCat');
+    try {
+      if(btn) { btn.disabled=true; btn.textContent='⏳ Subiendo...'; }
+      const fname = 'tareas/' + id + '_' + Date.now() + '.pdf';
+      const r = await fetch(DRIVE_WORKER, { method:'POST', headers:{'X-Action':'upload-file','X-Key':fname,'Content-Type':'application/pdf'}, body:_tcPdfFile });
+      if(r.ok) {
+        const d = await r.json(); pdfUrl=d.url; pdfNombre=_tcPdfFile.name; pdfBase64=null;
+        toast('PDF subido ✅','ok');
+      } else { throw new Error('Worker error'); }
+    } catch(e) {
+      // Fallback: guardar como base64 en Firebase (funciona desde local)
+      try {
+        const b64 = await fileToBase64(_tcPdfFile);
+        pdfBase64 = b64; pdfUrl = null; pdfNombre = _tcPdfFile.name;
+        toast('PDF guardado localmente (se subirá a la nube al abrir desde web)','ok');
+      } catch(e2) { toast('Error guardando PDF','err'); }
+    }
+    finally { if(btn){btn.disabled=false;btn.textContent='💾 Guardar';} }
+  }
+  const tarea = { id, nombre, desc:document.getElementById('tcDesc').value.trim(), categoriaId:document.getElementById('tcCategoria').value, periodicidad:document.getElementById('tcPeriodicidad').value, tiempo:parseInt(document.getElementById('tcTiempo').value)||0, pdfUrl, pdfNombre, pdfBase64: pdfBase64||null };
+  const arr = [...(DATA.tareascatalogo||[])];
+  const idx = arr.findIndex(t => t.id===id);
+  if(idx>=0) arr[idx]=tarea; else arr.push(tarea);
+  await saveData('tareascatalogo', arr);
+  closeModal('modalTareaCat');
+  toast('Tarea guardada ✅','ok');
+  abrirTabPlan('catalogo'); // quedarse en catálogo
+}
+async function deleteTareaCat(id) {
+  if(!confirm('¿Eliminar esta tarea del catálogo?')) return;
+  await saveData('tareascatalogo', (DATA.tareascatalogo||[]).filter(t => t.id!==id));
+  toast('Eliminada');
+}
+function renderCatalogo() {
+  populateCatSelect();
+  const list = document.getElementById('catalogoList'); if(!list) return;
+  if(!(DATA.tareascatalogo||[]).length) { list.innerHTML='<div class="empty">Sin tareas. Crea la primera →</div>'; return; }
+  const periLabel = {diaria:'Diaria',semanal:'Semanal',mensual:'Mensual',trimestral:'Trimestral',anual:'Anual',manual:'Manual'};
+  list.innerHTML = DATA.tareascatalogo.map(t => {
+    const cat = getCat(t.categoriaId);
+    return `<div class="card bl-b" style="${cat?'border-left:3px solid '+cat.color:''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;flex-wrap:wrap">
+            ${cat?`<span style="background:${cat.color}22;color:${cat.color};font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px">${cat.nombre}</span>`:''}
+            <span style="font-weight:700;font-size:13px">${t.nombre}</span>
+          </div>
+          ${t.desc?`<div style="font-size:11px;color:var(--text3);margin-bottom:4px">${t.desc}</div>`:''}
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            <span class="badge b-b">${periLabel[t.periodicidad]||t.periodicidad}</span>
+            ${t.tiempo?`<span class="badge b-m">⏱ ${t.tiempo}min</span>`:''}
+            ${(t.pdfUrl||t.pdfBase64)?`<a href="${t.pdfUrl||t.pdfBase64}" target="_blank" class="badge b-b" style="text-decoration:none">📄 PDF</a>`:''}
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button class="btn btn-ghost btn-xs" onclick="openModalNuevaTareaCat('${t.id}')">✏️</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteTareaCat('${t.id}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── ASIGNAR TAREA ──
+function openModalAsignarTarea(fecha) {
+  populateCatSelect();
+  const sel = document.getElementById('asigTareaId');
+  sel.innerHTML = '<option value="">— Selecciona —</option>' + (DATA.tareascatalogo||[]).map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
+  document.getElementById('asigFecha').value = fecha || today();
+  document.getElementById('asigPrioridad').value = 'normal';
+  document.getElementById('asigNota').value = '';
+  document.getElementById('asigRecurrente').checked = false;
+  document.getElementById('asigRecurrenteOpts').style.display = 'none';
+  document.getElementById('asigTareaPreview').style.display = 'none';
+  openModal('modalAsignarTarea');
+}
+function onChangeTareaCat() {
+  const id = document.getElementById('asigTareaId').value;
+  const tc = (DATA.tareascatalogo||[]).find(t => t.id===id);
+  const prev = document.getElementById('asigTareaPreview');
+  if(tc) {
+    prev.style.display = '';
+    const cat = getCat(tc.categoriaId);
+    prev.innerHTML = `${cat?`<span style="background:${cat.color}22;color:${cat.color};font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-right:4px">${cat.nombre}</span>`:''}${tc.nombre}${tc.desc?`<br><span style="color:var(--text3)">${tc.desc}</span>`:''}${tc.tiempo?`<br><span style="color:var(--text3)">⏱ ${tc.tiempo}min</span>`:''}`;
+  } else prev.style.display = 'none';
+}
+async function saveAsignarTarea() {
+  const tareaId = document.getElementById('asigTareaId').value;
+  if(!tareaId) { toast('Selecciona una tarea','err'); return; }
+  const fecha = document.getElementById('asigFecha').value;
+  if(!fecha) { toast('Selecciona una fecha','err'); return; }
+  const tc = (DATA.tareascatalogo||[]).find(t => t.id===tareaId);
+  const arr = [...(DATA.tareasasignadas||[])];
+  const recurrente = document.getElementById('asigRecurrente').checked;
+  if(recurrente) {
+    const repetir = document.getElementById('asigRepetir').value;
+    const dia = parseInt(document.getElementById('asigDiaMes').value)||20;
+    generarFechasRecurrentes(repetir, dia, 12).forEach(f => {
+      arr.push({id:uid(), tareaId, nombre:tc?.nombre||'Tarea', categoriaId:tc?.categoriaId||'', fecha:f, prioridad:document.getElementById('asigPrioridad').value, nota:document.getElementById('asigNota').value.trim(), hecha:false});
+    });
+  } else {
+    arr.push({id:uid(), tareaId, nombre:tc?.nombre||'Tarea', categoriaId:tc?.categoriaId||'', fecha, prioridad:document.getElementById('asigPrioridad').value, nota:document.getElementById('asigNota').value.trim(), hecha:false});
+  }
+  await saveData('tareasasignadas', arr);
+  closeModal('modalAsignarTarea');
+  toast(recurrente?'Tareas recurrentes creadas ✅':'Tarea asignada ✅','ok');
+}
+function generarFechasRecurrentes(tipo, dia, n) {
+  const fechas = []; const hoy = new Date(); const todayIso = hoy.toISOString().split('T')[0];
+  for(let i=0;i<n;i++) {
+    let d;
+    if(tipo==='mensual') d = new Date(hoy.getFullYear(), hoy.getMonth()+i, dia);
+    else if(tipo==='semanal') d = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()+i*7);
+    else { const meses=[3,6,9,0]; const m=meses[i%4]; const yOff=Math.floor(i/4)+(m===0&&hoy.getMonth()>0?1:0); d=new Date(hoy.getFullYear()+yOff,m,dia); }
+    const adj = primerDiaHabilAnterior(d);
+    const iso = localIso(adj);
+    if(!fechas.includes(iso) && iso>=todayIso) fechas.push(iso);
+  }
+  return [...new Set(fechas)].sort().slice(0,n);
+}
+function esFestivo(iso) { return (DATA.festivos||[]).some(f => f.fecha===iso); }
+function primerDiaHabilAnterior(d) { const c=new Date(d); while(c.getDay()===0||c.getDay()===6||esFestivo(localIso(c))) c.setDate(c.getDate()-1); return c; }
+
+function renderTareasAsignadas() {
+  const list = document.getElementById('tareasAsignadasList'); if(!list) return;
+  const filtro = document.getElementById('filtroTareasEstado')?.value||'todas';
+  const filtroCat = document.getElementById('filtroTareasCat')?.value||'todas';
+  let tareas = [...(DATA.tareasasignadas||[])];
+  if(filtro==='pendiente') tareas = tareas.filter(t => !t.hecha);
+  if(filtro==='hecha') tareas = tareas.filter(t => t.hecha);
+  if(filtroCat!=='todas') tareas = tareas.filter(t => t.categoriaId===filtroCat);
+  tareas.sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''));
+  if(!tareas.length) { list.innerHTML='<div class="empty">Sin tareas asignadas.</div>'; return; }
+  const todayStr = today();
+  list.innerHTML = tareas.map(t => {
+    const diff = diffDays(t.fecha);
+    const vencida = !t.hecha && t.fecha < todayStr;
+    const pronto = !t.hecha && diff!==null && diff<=3 && diff>=0;
+    const cat = getCat(t.categoriaId);
+    const tc = (DATA.tareascatalogo||[]).find(c => c.id===t.tareaId);
+    const col = cat?.color||'var(--blue)';
+    return `<div class="card ${t.hecha?'bl-g':vencida?'bl-r':pronto?'bl-w':'bl-b'}" style="border-left:3px solid ${col};${t.hecha?'opacity:.6':''}">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <button style="background:${t.hecha?col:'transparent'};border:2px solid ${t.hecha?col:'var(--border2)'};border-radius:5px;width:22px;height:22px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;margin-top:1px" onclick="toggleTareaHecha('${t.id}')">${t.hecha?'✓':''}</button>
+        <div style="flex:1;min-width:0">
+          ${cat?`<span style="background:${col}22;color:${col};font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;display:inline-block;margin-bottom:3px">${cat.nombre}</span>`:''}
+          <div style="font-weight:700;font-size:13px;${t.hecha?'text-decoration:line-through':''}">${t.nombre}</div>
+          ${t.nota?`<div style="font-size:11px;color:var(--text3)">${t.nota}</div>`:''}
+          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;align-items:center">
+            <span style="font-size:11px;color:${vencida?'var(--red)':pronto?'var(--warn)':'var(--text3)'}">📅 ${fmt(t.fecha)}</span>
+            ${t.prioridad==='alta'?'<span class="badge b-r">Urgente</span>':''}
+            ${(tc?.pdfUrl||tc?.pdfBase64)?`<a href="${tc.pdfUrl||tc.pdfBase64}" target="_blank" style="font-size:10px;color:var(--blue);text-decoration:none">📄 PDF</a>`:''}
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-xs" onclick="openModalEditTarea('${t.id}')">✏️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function toggleTareaHecha(id) {
+  const arr = [...(DATA.tareasasignadas||[])];
+  const t = arr.find(x => x.id===id); if(!t) return;
+  t.hecha = !t.hecha;
+  await saveData('tareasasignadas', arr);
+}
+function openModalEditTarea(id) {
+  const t = (DATA.tareasasignadas||[]).find(x => x.id===id); if(!t) return;
+  const tc = (DATA.tareascatalogo||[]).find(c => c.id===t.tareaId);
+  document.getElementById('etId').value = id;
+  document.getElementById('etHeader').textContent = t.nombre;
+  document.getElementById('etFecha').value = t.fecha||'';
+  document.getElementById('etPrioridad').value = t.prioridad||'normal';
+  document.getElementById('etNota').value = t.nota||'';
+  const pdfDiv = document.getElementById('etPdfLink');
+  if(pdfDiv) {
+    const pdfHref2 = tc?.pdfUrl||tc?.pdfBase64; if(pdfHref2) { pdfDiv.style.display=''; pdfDiv.innerHTML=`<a href="${pdfHref2}" target="_blank" class="btn btn-blue btn-sm">📄 Ver instrucciones PDF</a>`; }
+    else pdfDiv.style.display = 'none';
+  }
+  openModal('modalEditTarea');
+}
+async function saveEditTarea() {
+  const id = document.getElementById('etId').value;
+  const arr = [...(DATA.tareasasignadas||[])];
+  const t = arr.find(x => x.id===id); if(!t) return;
+  t.fecha = document.getElementById('etFecha').value;
+  t.prioridad = document.getElementById('etPrioridad').value;
+  t.nota = document.getElementById('etNota').value.trim();
+  await saveData('tareasasignadas', arr);
+  closeModal('modalEditTarea');
+  toast('Actualizada','ok');
+}
+async function deleteTareaAsignada(id) {
+  if(!confirm('¿Eliminar esta tarea?')) return;
+  await saveData('tareasasignadas', (DATA.tareasasignadas||[]).filter(t => t.id!==id));
+  closeModal('modalEditTarea');
+  toast('Eliminada');
+}
+function renderCalendario() {
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const titulo   = document.getElementById('calTitulo');
+  const container = document.getElementById('calContainer');
+  if (!titulo || !container) return;
+
+  let tareasPeriodo = [];
+  if (calView === 'mes') {
+    titulo.textContent = MESES[calMonth] + ' ' + calYear;
+    tareasPeriodo = (DATA.tareasasignadas||[]).filter(t =>
+      t.fecha && t.fecha.startsWith(`${calYear}-${String(calMonth+1).padStart(2,'0')}`));
+  } else if (calView === 'semana') {
+    const ss = getWeekStart(new Date(calYear, calMonth, calDay));
+    const se = new Date(ss); se.setDate(se.getDate() + 6);
+    titulo.textContent = `${fmt(localIso(ss))} – ${fmt(localIso(se))}`;
+    tareasPeriodo = (DATA.tareasasignadas||[]).filter(t => {
+      if (!t.fecha) return false;
+      return t.fecha >= localIso(ss) && t.fecha <= localIso(se);
+    });
+  } else {
+    const iso = isoDate(calYear, calMonth, calDay);
+    titulo.textContent = new Date(calYear, calMonth, calDay)
+      .toLocaleDateString('es-ES', {weekday:'long', day:'numeric', month:'long'});
+    tareasPeriodo = (DATA.tareasasignadas||[]).filter(t => t.fecha === iso);
+  }
+
+  const hechas = tareasPeriodo.filter(t => t.hecha).length;
+  const pend   = tareasPeriodo.length - hechas;
+  const stats  = document.getElementById('calStats');
+  if (stats) stats.innerHTML =
+    `<div class="stat"><div class="stat-l">Tareas</div><div class="stat-v">${tareasPeriodo.length}</div></div>` +
+    `<div class="stat"><div class="stat-l">Hechas</div><div class="stat-v g">${hechas}</div></div>` +
+    `<div class="stat"><div class="stat-l">Pendientes</div><div class="stat-v ${pend>0?'w':''}">${pend}</div></div>`;
+
+  if (calView === 'mes')    container.innerHTML = renderCalMes();
+  else if (calView === 'semana') container.innerHTML = renderCalSemana();
+  else                       container.innerHTML = renderCalDia();
+}
+
+// ── calNav: sincroniza calDay al navegar para que las 3 vistas compartan el punto de referencia ──
+function calNav(d) {
+  if (calView === 'mes') {
+    calMonth += d;
+    if (calMonth > 11) { calMonth = 0; calYear++; }
+    else if (calMonth < 0) { calMonth = 11; calYear--; }
+    // Mantener calDay dentro del mes
+    const maxDay = new Date(calYear, calMonth+1, 0).getDate();
+    if (calDay > maxDay) calDay = maxDay;
+  } else if (calView === 'semana') {
+    const dt = new Date(calYear, calMonth, calDay);
+    dt.setDate(dt.getDate() + d * 7);
+    calYear = dt.getFullYear(); calMonth = dt.getMonth(); calDay = dt.getDate();
+  } else {
+    const dt = new Date(calYear, calMonth, calDay);
+    dt.setDate(dt.getDate() + d);
+    calYear = dt.getFullYear(); calMonth = dt.getMonth(); calDay = dt.getDate();
+  }
+  renderCalendario();
+}
+
+function calHoy() {
+  const n = new Date();
+  calYear = n.getFullYear(); calMonth = n.getMonth(); calDay = n.getDate();
+  renderCalendario();
+}
+
+function getWeekStart(date) {
+  const d = new Date(date);
+  const dow = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - dow);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function isoDate(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+// Convierte un objeto Date a ISO string usando hora LOCAL (evita bug UTC+X)
+function localIso(date) {
+  return isoDate(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function setCalView(v) {
+  calView = v;
+  document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('calViewBtn-' + v)?.classList.add('active');
+  renderCalendario();
+}
+
+// ── Chip de tarea para vista mensual ──
+function chipColor(t) { const cat = getCat(t.categoriaId); return cat?.color || '#1d4ed8'; }
+function taskChipHtml(t) {
+  const col = chipColor(t);
+  return `<div style="font-size:9px;border-radius:3px;padding:2px 4px;margin-bottom:1px;background:${col}18;color:${col};border-left:2px solid ${col};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${t.hecha?'opacity:.5;text-decoration:line-through':''};display:flex;align-items:center;gap:3px"
+    draggable="true" ondragstart="dragStart(event,'${t.id}')" onclick="openModalEditTarea('${t.id}')">
+    <span style="cursor:pointer;flex-shrink:0;font-size:10px" onclick="event.stopPropagation();toggleTareaHecha('${t.id}')">${t.hecha?'☑':'☐'}</span>
+    <span style="overflow:hidden;text-overflow:ellipsis">${t.nombre}</span>
+  </div>`;
+}
+
+// ── VISTA MENSUAL ──
+function renderCalMes() {
+  const todayStr = today();
+  const firstDay = new Date(calYear, calMonth, 1);
+  const lastDay  = new Date(calYear, calMonth+1, 0);
+  const startDow = (firstDay.getDay() + 6) % 7;
+  let h = `<div class="cal-grid">
+    <div class="cal-head">Lu</div><div class="cal-head">Ma</div><div class="cal-head">Mi</div>
+    <div class="cal-head">Ju</div><div class="cal-head">Vi</div>
+    <div class="cal-head" style="color:#b45309">Sá</div><div class="cal-head" style="color:#b45309">Do</div>`;
+  for (let i = 0; i < startDow; i++) h += `<div class="cal-day otro-mes"></div>`;
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const iso   = isoDate(calYear, calMonth, d);
+    const dow   = new Date(calYear, calMonth, d).getDay();
+    const finde = dow === 0 || dow === 6;
+    const fest  = (DATA.festivos||[]).find(f => f.fecha === iso);
+    const isToday = iso === todayStr;
+    const isSelected = (d === calDay && calMonth === calMonth && calYear === calYear);
+    const tareas  = (DATA.tareasasignadas||[]).filter(t => t.fecha === iso);
+    const visibles = tareas.slice(0, 3);
+    const resto   = tareas.length - 3;
+    h += `<div class="cal-day${finde||fest?' festivo':''}${isToday?' today':''}"
+      style="${isSelected&&!isToday?'outline:2px solid var(--accent);':''}"
+      ondragover="event.preventDefault();this.style.outline='2px solid var(--accent)'"
+      ondragleave="this.style.outline='${isSelected&&!isToday?'2px solid var(--accent)':''}'"
+      ondrop="dropOnDay(event,'${iso}');this.style.outline=''">
+      <div class="cal-day-num" onclick="irDia(${calYear},${calMonth},${d})" style="cursor:pointer;display:flex;align-items:center;gap:3px">
+        ${d}${fest?`<span style="font-size:8px;color:#dc2626;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50px" title="${fest.motivo}">🔴</span>`:''}
+      </div>
+      ${visibles.map(t => taskChipHtml(t)).join('')}
+      ${resto > 0 ? `<div style="font-size:9px;color:var(--text3);cursor:pointer" onclick="irDia(${calYear},${calMonth},${d})">+${resto} más</div>` : ''}
+    </div>`;
+  }
+  return h + '</div>';
+}
+
+// ── VISTA SEMANAL ──
+function renderCalSemana() {
+  const ss      = getWeekStart(new Date(calYear, calMonth, calDay));
+  const dias    = ['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
+  const todayStr = today();
+  let h = `<div class="cal-week-grid">`;
+  for (let i = 0; i < 7; i++) {
+    const d    = new Date(ss); d.setDate(d.getDate() + i);
+    const iso  = localIso(d);
+    const finde = d.getDay() === 0 || d.getDay() === 6;
+    const fest = (DATA.festivos||[]).find(f => f.fecha === iso);
+    const isToday = iso === todayStr;
+    const isCurDay = (d.getDate()===calDay && d.getMonth()===calMonth && d.getFullYear()===calYear);
+    const tareas = (DATA.tareasasignadas||[]).filter(t => t.fecha === iso);
+
+    // Color de fondo cabecera según estado del día
+    let headBg = '';
+    if (fest)    headBg = 'background:#fee2e2;';
+    else if (finde) headBg = 'background:#f3f4f6;';
+    else if (isToday) headBg = 'background:#fffbf0;';
+
+    h += `<div class="cal-week-col${isCurDay?' sel-day':''}"
+      style="${isCurDay?'outline:2px solid var(--accent);border-radius:8px;':''}"
+      ondragover="event.preventDefault();this.style.outline='2px solid var(--accent)'"
+      ondragleave="this.style.outline='${isCurDay?'2px solid var(--accent)':''}'"
+      ondrop="dropOnDay(event,'${iso}');this.style.outline=''">
+      <div class="cal-week-head${isToday?' today':''}" style="${headBg}cursor:pointer" onclick="irDia(${d.getFullYear()},${d.getMonth()},${d.getDate()})">
+        <span style="font-size:11px;font-weight:700;color:${finde?'#b45309':isToday?'var(--accent)':'var(--text2)'}">${dias[i]} ${d.getDate()}</span>
+        ${fest ? `<div style="font-size:9px;color:#dc2626;font-weight:700;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${fest.motivo}">🔴 ${fest.motivo}</div>` : ''}
+      </div>
+      <div class="cal-week-body">
+        ${tareas.map(t => {
+          const col = chipColor(t);
+          return `<div class="cal-week-task${t.hecha?' hecha':''}"
+            style="background:${col}15;color:${col};border-left-color:${col}"
+            draggable="true" ondragstart="dragStart(event,'${t.id}')"
+            onclick="openModalEditTarea('${t.id}')">
+            <span onclick="event.stopPropagation();toggleTareaHecha('${t.id}')" style="cursor:pointer;margin-right:3px">${t.hecha?'☑':'☐'}</span>${t.nombre}
+          </div>`;
+        }).join('')}
+        ${!finde && !fest ? `<div class="cal-week-add" onclick="openModalAsignarTarea('${iso}')">+ añadir</div>` : ''}
+      </div>
+    </div>`;
+  }
+  return h + '</div>';
+}
+
+// ── VISTA DIARIA ──
+function renderCalDia() {
+  const iso   = isoDate(calYear, calMonth, calDay);
+  const fest  = (DATA.festivos||[]).find(f => f.fecha === iso);
+  const tareas = (DATA.tareasasignadas||[]).filter(t => t.fecha === iso);
+  const dow   = new Date(calYear, calMonth, calDay).getDay();
+  const finde = dow === 0 || dow === 6;
+
+  let h = '';
+
+  // Banner festivo / fin de semana
+  if (fest) {
+    h += `<div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-weight:700;color:#dc2626;font-size:14px">
+      🔴 ${fest.motivo} — día festivo
+    </div>`;
+  } else if (finde) {
+    h += `<div style="background:#f3f4f6;border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-weight:600;color:var(--text3);font-size:13px">
+      Fin de semana
+    </div>`;
+  }
+
+  h += `<div style="margin-bottom:12px">
+    <button class="btn btn-primary btn-sm" onclick="openModalAsignarTarea('${iso}')">+ Añadir tarea este día</button>
+  </div>`;
+
+  if (!tareas.length) return h + '<div class="empty">Sin tareas para este día.</div>';
+
+  h += tareas.map(t => {
+    const col = chipColor(t);
+    const tc  = (DATA.tareascatalogo||[]).find(c => c.id === t.tareaId);
+    const cat = getCat(t.categoriaId);
+    return `<div class="cal-day-full${t.hecha?' hecha':''}" style="border-left-color:${col}">
+      <button style="background:${t.hecha?col:'#fff'};border:2px solid ${col};border-radius:7px;min-width:32px;min-height:32px;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;color:${t.hecha?'#fff':col};font-size:16px;font-weight:700"
+        onclick="toggleTareaHecha('${t.id}')">${t.hecha?'✓':'○'}</button>
+      <div style="flex:1;min-width:0">
+        ${cat ? `<span style="background:${col}18;color:${col};font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;display:inline-block;margin-bottom:5px">${cat.nombre}</span>` : ''}
+        <div style="font-weight:700;font-size:15px;${t.hecha?'text-decoration:line-through;color:var(--text3)':''}">${t.nombre}</div>
+        ${t.nota ? `<div style="font-size:13px;color:var(--text3);margin-top:4px">${t.nota}</div>` : ''}
+        ${tc?.tiempo ? `<div style="font-size:12px;color:var(--text3);margin-top:3px">⏱ ${tc.tiempo} min</div>` : ''}
+        ${(tc?.pdfUrl||tc?.pdfBase64) ? `<a href="${tc.pdfUrl||tc.pdfBase64}" target="_blank" class="btn btn-blue btn-xs" style="margin-top:8px;display:inline-flex">📄 Ver instrucciones PDF</a>` : ''}
+        ${t.prioridad==='alta' ? '<span class="badge b-r" style="margin-top:5px;display:inline-block">⚡ Urgente</span>' : ''}
+      </div>
+      <button class="btn btn-ghost btn-xs" onclick="openModalEditTarea('${t.id}')">✏️</button>
+    </div>`;
+  }).join('');
+  return h;
+}
+
+// ── Navegar a día concreto desde mensual ──
+function irDia(y, m, d) {
+  calYear = y; calMonth = m; calDay = d;
+  setCalView('dia');
+}
+
+// ── Drag & Drop ──
+function dragStart(e, id) { _dragTareaId = id; e.dataTransfer.effectAllowed = 'move'; }
+async function dropOnDay(e, iso) {
+  e.preventDefault();
+  if (!_dragTareaId) return;
+  const arr = [...(DATA.tareasasignadas||[])];
+  const t = arr.find(x => x.id === _dragTareaId); if (!t) return;
+  t.fecha = iso; _dragTareaId = null;
+  // Actualizar calDay/calMonth/calYear al día del drop para que todas las vistas lo vean
+  const dt = new Date(iso + 'T00:00:00');
+  // No cambiamos la vista, solo guardamos
+  await saveData('tareasasignadas', arr);
+}
+
+// ── CALENDARIO LABORAL ──
+function laboralMes(d) {
+  laboralMonth+=d;
+  if(laboralMonth>11){laboralMonth=0;laboralYear++;}else if(laboralMonth<0){laboralMonth=11;laboralYear--;}
+  renderLaboralGrid();
+}
+function renderLaboralGrid() {
+  const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  document.getElementById('laboralTitulo').textContent = MESES[laboralMonth]+' '+laboralYear;
+  const firstDay = new Date(laboralYear,laboralMonth,1);
+  const lastDay  = new Date(laboralYear,laboralMonth+1,0);
+  const startDow = (firstDay.getDay()+6)%7;
+  const todayStr = today();
+  let html = '';
+  for(let i=0;i<startDow;i++) html += `<div class="laboral-day otro-mes"></div>`;
+  for(let d=1;d<=lastDay.getDate();d++) {
+    const iso = isoDate(laboralYear,laboralMonth,d);
+    const dow = new Date(laboralYear,laboralMonth,d).getDay();
+    const finde = dow===0||dow===6;
+    const fest  = (DATA.festivos||[]).find(f => f.fecha===iso);
+    const isToday = iso===todayStr;
+    const classes = ['laboral-day', finde?'finde':'', fest?'festivo':'', isToday?'today':''].filter(Boolean).join(' ');
+    const title = fest ? fest.motivo : (finde?'Fin de semana':'');
+    html += `<div class="${classes}" title="${title}" onclick="${finde?'':'clickLaboralDia(\''+iso+'\')' }">${d}</div>`;
+  }
+  document.getElementById('laboralGrid').innerHTML = html;
+  // Lista festivos
+  const lista = document.getElementById('laboralFestivosList'); if(!lista) return;
+  if(!(DATA.festivos||[]).length) { lista.innerHTML='<div style="font-size:12px;color:var(--text3)">Sin festivos configurados.</div>'; return; }
+  lista.innerHTML = `<div style="font-size:10px;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Festivos</div>` +
+    [...DATA.festivos].sort((a,b)=>a.fecha.localeCompare(b.fecha)).map(f =>
+      `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px">
+        <span style="color:var(--red)">✕ ${fmt(f.fecha)}</span>
+        <span style="color:var(--text3);flex:1">${f.motivo||''}</span>
+        <button class="btn btn-danger btn-xs" onclick="deleteFestivo('${f.id}')">✕</button>
+      </div>`
+    ).join('');
+}
+function clickLaboralDia(iso) {
+  const fest = (DATA.festivos||[]).find(f => f.fecha===iso);
+  if(fest) {
+    if(confirm(`¿Desmarcar "${fest.motivo||iso}" (${fmt(iso)})?`)) deleteFestivo(fest.id);
+  } else {
+    document.getElementById('festivoFechaInput').value = iso;
+    const finEl = document.getElementById('festivoFechaFin');
+    if(finEl) finEl.value = '';
+    document.getElementById('festivoMotivoInput').value = '';
+    updateFestivoLabel();
+    openModal('modalFestivo');
+  }
+}
+function updateFestivoLabel() {
+  const inicio = document.getElementById('festivoFechaInput').value;
+  const fin    = document.getElementById('festivoFechaFin')?.value||'';
+  const label  = document.getElementById('festivoFechaLabel');
+  if(!label) return;
+  if(fin && fin > inicio) {
+    const dias = Math.round((new Date(fin)-new Date(inicio))/86400000)+1;
+    label.textContent = `Del ${fmt(inicio)} al ${fmt(fin)} (${dias} días)`;
+  } else {
+    label.textContent = fmt(inicio);
+  }
+}
+async function confirmarFestivo() {
+  const inicio = document.getElementById('festivoFechaInput').value;
+  const fin    = document.getElementById('festivoFechaFin')?.value||'';
+  const motivo = document.getElementById('festivoMotivoInput').value.trim()||'Festivo';
+  const arr    = [...(DATA.festivos||[])];
+  // Generar todas las fechas del rango (excluir fines de semana)
+  const fechas = [];
+  let cur = new Date(inicio);
+  const fechaFin = fin && fin >= inicio ? new Date(fin) : new Date(inicio);
+  while(cur <= fechaFin) {
+    const dow = cur.getDay();
+    if(dow !== 0 && dow !== 6) { // excluir sáb/dom
+      const iso = localIso(cur);
+      fechas.push(iso);
+    }
+    cur.setDate(cur.getDate()+1);
+  }
+  fechas.forEach(fecha => {
+    if(!arr.find(f => f.fecha===fecha)) arr.push({id:uid(), fecha, motivo});
+  });
+  arr.sort((a,b) => a.fecha.localeCompare(b.fecha));
+  await saveData('festivos', arr);
+  closeModal('modalFestivo');
+  toast(`${fechas.length} día${fechas.length>1?'s':''} marcado${fechas.length>1?'s':''} ✅`,'ok');
+  // Volver al calendario laboral
+  abrirTabPlan('laboral');
+}
+async function deleteFestivo(id) {
+  await saveData('festivos', (DATA.festivos||[]).filter(f => f.id!==id));
+  toast('Festivo eliminado');
+  abrirTabPlan('laboral');
+}
+
+// ════════════════════════════════════════
+// PREVISIÓN PAGO PROVEEDORES
+// ════════════════════════════════════════════════════════
+function openModalProveedor(id) {
+  const p = id ? DATA.proveedores.find(x => x.id === id) : null;
+  document.getElementById('provId').value = p?.id || '';
+  document.getElementById('provNombre').value = p?.nombre || '';
+  document.getElementById('provNFactura').value = p?.nFactura || '';
+  document.getElementById('provVencimiento').value = p?.vencimiento || '';
+  document.getElementById('provImporte').value = p?.importe || '';
+  document.getElementById('provNota').value = p?.nota || '';
+  // Actualizar datalist
+  const dl = document.getElementById('listProveedoresExist');
+  const provs = [...new Set(DATA.proveedores.map(x => x.nombre).filter(Boolean))];
+  dl.innerHTML = provs.map(n => `<option value="${n}">`).join('');
+  openModal('modalProveedor');
+}
+async function saveProveedor() {
+  const nombre = document.getElementById('provNombre').value.trim();
+  const vencimiento = document.getElementById('provVencimiento').value;
+  const importe = parseFloat(document.getElementById('provImporte').value);
+  if (!nombre || !vencimiento || isNaN(importe)) { toast('Rellena los campos obligatorios','err'); return; }
+  const id = document.getElementById('provId').value || uid();
+  const existing = DATA.proveedores.find(x => x.id === id);
+  const item = { id, nombre, nFactura: document.getElementById('provNFactura').value.trim(), vencimiento, importe, fechaTransf: document.getElementById('provFechaTransf')?.value||'', nota: document.getElementById('provNota').value.trim(), programada: existing?.programada||false, pagado: existing?.pagado||false };
+  const arr = [...DATA.proveedores];
+  const idx = arr.findIndex(x => x.id === id);
+  if (idx >= 0) arr[idx] = item; else arr.push(item);
+  await saveData('proveedores', arr);
+  closeModal('modalProveedor');
+  toast('Factura guardada','ok');
+}
+async function toggleProvEstado(id, campo) {
+  const arr = [...DATA.proveedores];
+  const p = arr.find(x => x.id === id); if (!p) return;
+  p[campo] = !p[campo];
+  if (campo === 'pagado' && p.pagado && !p.programada) p.programada = true;
+  await saveData('proveedores', arr);
+}
+async function deleteProveedor(id) {
+  if (!confirm('¿Eliminar esta factura?')) return;
+  await saveData('proveedores', DATA.proveedores.filter(x => x.id !== id));
+}
+
+// ── CATÁLOGO: EXPORTAR / IMPORTAR EXCEL ──
+function exportarCatalogoExcel() {
+  if (typeof XLSX === 'undefined') { toast('Librería Excel no disponible', 'err'); return; }
+  if (!(DATA.tareascatalogo||[]).length) { toast('El catálogo está vacío', 'err'); return; }
+
+  const periLabel = {diaria:'Diaria',semanal:'Semanal',mensual:'Mensual',trimestral:'Trimestral',anual:'Anual',manual:'Manual / Puntual'};
+
+  const filas = DATA.tareascatalogo.map(t => {
+    const cat = getCat(t.categoriaId);
+    return {
+      'NOMBRE':        t.nombre || '',
+      'DESCRIPCIÓN':   t.desc   || '',
+      'CATEGORÍA':     cat ? cat.nombre : '',
+      'COLOR CATEG.':  cat ? cat.color  : '',
+      'PERIODICIDAD':  periLabel[t.periodicidad] || t.periodicidad || '',
+      'TIEMPO (min)':  t.tiempo || '',
+      'PDF URL':       t.pdfUrl || '',
+      'PDF NOMBRE':    t.pdfNombre || '',
+    };
+  });
+
+  const wb  = XLSX.utils.book_new();
+  const ws  = XLSX.utils.json_to_sheet(filas);
+  ws['!cols'] = [{wch:30},{wch:50},{wch:18},{wch:12},{wch:16},{wch:12},{wch:50},{wch:25}];
+
+  // Añadir una hoja de instrucciones
+  const instrucciones = [
+    ['INSTRUCCIONES DE IMPORTACIÓN'],
+    [''],
+    ['• Rellena las columnas NOMBRE (obligatorio), DESCRIPCIÓN, CATEGORÍA, PERIODICIDAD y TIEMPO (min).'],
+    ['• CATEGORÍA: escribe el nombre de una categoría existente o nueva. El color se asignará automáticamente si es nueva.'],
+    ['• COLOR CATEG.: código hex (ej: #5b9cf6). Si dejas vacío y la categoría es nueva, se asigna un color automático.'],
+    ['• PERIODICIDAD: Diaria / Semanal / Mensual / Trimestral / Anual / Manual'],
+    ['• PDF URL y PDF NOMBRE: déjalos en blanco; los PDFs se suben desde la aplicación.'],
+    ['• No elimines ni renombres las columnas de cabecera.'],
+    ['• Al importar, las tareas con el mismo NOMBRE se actualizarán; las nuevas se añadirán.'],
+  ];
+  const wsInstr = XLSX.utils.aoa_to_sheet(instrucciones);
+  wsInstr['!cols'] = [{wch:80}];
+
+  XLSX.utils.book_append_sheet(wb, ws,      'Catálogo');
+  XLSX.utils.book_append_sheet(wb, wsInstr, 'Instrucciones');
+
+  const fecha = today();
+  XLSX.writeFile(wb, `Catalogo_Tareas_${fecha}.xlsx`);
+  toast('Excel exportado ✅', 'ok');
+}
+
+async function importarCatalogoExcel(input) {
+  if (!input.files?.length) return;
+  if (typeof XLSX === 'undefined') { toast('Librería Excel no disponible', 'err'); return; }
+
+  const file   = input.files[0];
+  input.value  = ''; // reset para permitir reimportar el mismo archivo
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb     = XLSX.read(buffer, { type: 'array' });
+
+    // Buscar hoja "Catálogo" o primera hoja
+    const sheetName = wb.SheetNames.includes('Catálogo') ? 'Catálogo' : wb.SheetNames[0];
+    const ws    = wb.Sheets[sheetName];
+    const rows  = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+    if (!rows.length) { toast('El archivo no contiene filas de datos', 'err'); return; }
+
+    // Validar que tiene la columna NOMBRE
+    if (!('NOMBRE' in rows[0])) {
+      toast('Formato incorrecto — falta columna NOMBRE', 'err');
+      return;
+    }
+
+    const periMap = {
+      'diaria':'diaria','semanal':'semanal','mensual':'mensual',
+      'trimestral':'trimestral','anual':'anual','manual':'manual',
+      'manual / puntual':'manual',
+      'Diaria':'diaria','Semanal':'semanal','Mensual':'mensual',
+      'Trimestral':'trimestral','Anual':'anual','Manual':'manual',
+      'Manual / Puntual':'manual',
+    };
+
+    // Merge con el catálogo existente
+    const catActual = [...(DATA.tareascatalogo||[])];
+    let añadidas = 0, actualizadas = 0, errores = 0;
+
+    // Gestión de categorías: buscar o crear
+    const catsActuales = [...(DATA.categorias||[])];
+    let catsModif = false;
+
+    for (const row of rows) {
+      const nombre = String(row['NOMBRE']||'').trim();
+      if (!nombre) { errores++; continue; }
+
+      // Gestionar categoría
+      let categoriaId = '';
+      const catNombreRaw = String(row['CATEGORÍA']||'').trim();
+      if (catNombreRaw) {
+        let cat = catsActuales.find(c => c.nombre.toLowerCase() === catNombreRaw.toLowerCase());
+        if (!cat) {
+          // Crear categoría nueva
+          const colorRaw = String(row['COLOR CATEG.']||'').trim();
+          const colorAuto = ['#5b9cf6','#f0a500','#2ecc8a','#ff4d4d','#a78bfa','#f5c842','#2dd4bf','#ff8c69','#e879f9','#94a3b8'];
+          const color = colorRaw.startsWith('#') ? colorRaw : colorAuto[catsActuales.length % colorAuto.length];
+          cat = { id: uid(), nombre: catNombreRaw, color };
+          catsActuales.push(cat);
+          catsModif = true;
+        }
+        categoriaId = cat.id;
+      }
+
+      const periodicidad = periMap[String(row['PERIODICIDAD']||'').trim()] || 'mensual';
+      const tiempo       = parseInt(row['TIEMPO (min)']||row['TIEMPO']||'') || 0;
+      const desc         = String(row['DESCRIPCIÓN']||row['DESCRIPCION']||'').trim();
+      const pdfUrl       = String(row['PDF URL']||'').trim() || null;
+      const pdfNombre    = String(row['PDF NOMBRE']||'').trim() || null;
+
+      // Buscar si ya existe por nombre (case-insensitive)
+      const existIdx = catActual.findIndex(t => t.nombre.toLowerCase() === nombre.toLowerCase());
+      if (existIdx >= 0) {
+        // Actualizar preservando id y pdfBase64
+        catActual[existIdx] = {
+          ...catActual[existIdx],
+          nombre, desc, categoriaId, periodicidad, tiempo,
+          pdfUrl:    pdfUrl    || catActual[existIdx].pdfUrl,
+          pdfNombre: pdfNombre || catActual[existIdx].pdfNombre,
+        };
+        actualizadas++;
+      } else {
+        catActual.push({ id: uid(), nombre, desc, categoriaId, periodicidad, tiempo, pdfUrl, pdfNombre });
+        añadidas++;
+      }
+    }
+
+    // Guardar
+    if (catsModif) await saveData('categorias', catsActuales);
+    await saveData('tareascatalogo', catActual);
+
+    toast(`Importado: ${añadidas} nuevas, ${actualizadas} actualizadas${errores?' · '+errores+' omitidas':''}`, 'ok');
+    abrirTabPlan('catalogo');
+
+  } catch (e) {
+    console.error(e);
+    toast('Error al leer el archivo Excel', 'err');
+  }
+}
+
+// ════════════════════════════════════════
+// EXPORTACIÓN EXCEL
+// ════════════════════════════════════════
+function exportarProveedoresExcel() {
+  if (typeof XLSX === 'undefined') { toast('Librería Excel no disponible', 'err'); return; }
+
+  const todayStr = today();
+
+  // Hoja 1: Detalle completo
+  const filas = DATA.proveedores
+    .slice()
+    .sort((a,b) => (a.vencimiento||'').localeCompare(b.vencimiento||'') || (a.nombre||'').localeCompare(b.nombre||''))
+    .map(p => ({
+      'PROVEEDOR':            p.nombre || '',
+      'Nº FACTURA':           p.nFactura || '',
+      'VENCIMIENTO':          p.vencimiento ? fmt(p.vencimiento) : '',
+      'IMPORTE (€)':          p.importe !== undefined ? p.importe : '',
+      'F. TRANSFERENCIA':     p.fechaTransf ? fmt(p.fechaTransf) : '',
+      'TRANSF. PROGRAMADA':   p.programada ? 'Sí' : 'No',
+      'PAGADO':               p.pagado ? 'Sí' : 'No',
+      'ESTADO':               p.pagado ? 'Pagado' : p.programada ? 'Programado' : p.vencimiento < todayStr ? 'VENCIDO' : 'Pendiente',
+      'NOTAS':                p.nota || '',
+    }));
+
+  // Hoja 2: Resumen pendientes agrupado por proveedor
+  const pendientes = DATA.proveedores.filter(p => !p.pagado);
+  const resumen = {};
+  pendientes.forEach(p => {
+    if (!resumen[p.nombre]) resumen[p.nombre] = { 'PROVEEDOR': p.nombre, 'FACTURAS PENDIENTES': 0, 'TOTAL PENDIENTE (€)': 0, 'PRÓXIMO VENCIMIENTO': '' };
+    resumen[p.nombre]['FACTURAS PENDIENTES']++;
+    resumen[p.nombre]['TOTAL PENDIENTE (€)'] += p.importe || 0;
+    if (!resumen[p.nombre]['PRÓXIMO VENCIMIENTO'] || p.vencimiento < resumen[p.nombre]['_venc'])
+      resumen[p.nombre]['PRÓXIMO VENCIMIENTO'] = p.vencimiento ? fmt(p.vencimiento) : '';
+    resumen[p.nombre]['_venc'] = p.vencimiento || '';
+  });
+  const filasResumen = Object.values(resumen).map(r => {
+    const out = {...r}; delete out._venc;
+    out['TOTAL PENDIENTE (€)'] = Math.round(out['TOTAL PENDIENTE (€)'] * 100) / 100;
+    return out;
+  }).sort((a,b) => b['TOTAL PENDIENTE (€)'] - a['TOTAL PENDIENTE (€)']);
+
+  // Crear libro
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.json_to_sheet(filas);
+  const ws2 = XLSX.utils.json_to_sheet(filasResumen);
+
+  // Anchos de columna
+  ws1['!cols'] = [
+    {wch:25},{wch:15},{wch:14},{wch:12},{wch:16},{wch:18},{wch:10},{wch:12},{wch:30}
+  ];
+  ws2['!cols'] = [{wch:28},{wch:18},{wch:20},{wch:20}];
+
+  XLSX.utils.book_append_sheet(wb, ws1, 'Detalle');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Resumen por proveedor');
+
+  const fecha = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `Proveedores_${fecha}.xlsx`);
+  toast('Excel exportado ✅', 'ok');
+}
+
+function exportarFacturasExcel() {
+  if (typeof XLSX === 'undefined') { toast('Librería Excel no disponible', 'err'); return; }
+
+  const todayStr = today();
+
+  // Hoja 1: Todas las facturas
+  const filas = DATA.facturas
+    .slice()
+    .sort((a,b) => (a.vencimiento||'').localeCompare(b.vencimiento||''))
+    .map(f => ({
+      'Nº FACTURA':    f.nFactura || '',
+      'CLIENTE':       f.cliente || '',
+      'OBRA':          f.obra || '',
+      'IMPORTE (€)':   f.importe !== undefined ? f.importe : '',
+      'VENCIMIENTO':   f.vencimiento ? fmt(f.vencimiento) : '',
+      'COBRADA':       f.cobrada ? 'Sí' : 'No',
+      'FECHA COBRO':   f.fechaCobro ? fmt(f.fechaCobro) : '',
+      'ESTADO':        f.cobrada ? 'Cobrada' : f.vencimiento < todayStr ? 'VENCIDA' : 'Pendiente',
+      'NOTA':          f.nota || '',
+    }));
+
+  // Hoja 2: Pendientes de cobro por cliente
+  const pendientes = DATA.facturas.filter(f => !f.cobrada);
+  const resumen = {};
+  pendientes.forEach(f => {
+    const cli = f.cliente || 'Sin cliente';
+    if (!resumen[cli]) resumen[cli] = { 'CLIENTE': cli, 'FACTURAS PENDIENTES': 0, 'TOTAL PENDIENTE (€)': 0, 'VENCIDAS': 0 };
+    resumen[cli]['FACTURAS PENDIENTES']++;
+    resumen[cli]['TOTAL PENDIENTE (€)'] += f.importe || 0;
+    if (f.vencimiento < todayStr) resumen[cli]['VENCIDAS']++;
+  });
+  const filasResumen = Object.values(resumen).map(r => {
+    r['TOTAL PENDIENTE (€)'] = Math.round(r['TOTAL PENDIENTE (€)'] * 100) / 100;
+    return r;
+  }).sort((a,b) => b['TOTAL PENDIENTE (€)'] - a['TOTAL PENDIENTE (€)']);
+
+  // Stats globales al final de la hoja 1
+  const totalPend   = pendientes.reduce((s,f) => s + (f.importe||0), 0);
+  const totalCobrad = DATA.facturas.filter(f => f.cobrada).reduce((s,f) => s + (f.importe||0), 0);
+  const totalVenc   = pendientes.filter(f => f.vencimiento < todayStr).reduce((s,f) => s + (f.importe||0), 0);
+
+  // Crear libro
+  const wb = XLSX.utils.book_new();
+  const ws1 = XLSX.utils.json_to_sheet(filas);
+  const ws2 = XLSX.utils.json_to_sheet(filasResumen);
+
+  // Añadir fila resumen al final de hoja 1
+  const resRow = filas.length + 2; // +1 cabecera, +1 espacio
+  XLSX.utils.sheet_add_aoa(ws1, [
+    [],
+    ['RESUMEN', '', '', '', '', '', '', '', ''],
+    ['Total pendiente cobro', '', '', totalPend.toFixed(2), '', '', '', '', ''],
+    ['Total vencido sin cobrar', '', '', totalVenc.toFixed(2), '', '', '', '', ''],
+    ['Total cobrado', '', '', totalCobrad.toFixed(2), '', '', '', '', ''],
+  ], { origin: filas.length + 1 });
+
+  ws1['!cols'] = [{wch:14},{wch:25},{wch:20},{wch:12},{wch:14},{wch:10},{wch:13},{wch:12},{wch:30}];
+  ws2['!cols'] = [{wch:28},{wch:18},{wch:20},{wch:10}];
+
+  XLSX.utils.book_append_sheet(wb, ws1, 'Facturas');
+  XLSX.utils.book_append_sheet(wb, ws2, 'Resumen por cliente');
+
+  const fecha = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `Facturas_${fecha}.xlsx`);
+  toast('Excel exportado ✅', 'ok');
+}
+
+function renderProveedores() {
+  const todayStr = today();
+  const filtro = document.getElementById('filtroProvEstado')?.value||'todos';
+  const txt = (document.getElementById('filtroProvTexto')?.value||'').toLowerCase();
+  const pend = DATA.proveedores.filter(p => !p.pagado);
+  const totalPend = pend.reduce((s,p) => s+(p.importe||0), 0);
+  const stats = document.getElementById('statsProveedores');
+  if(stats) stats.innerHTML = `
+    <div class="stat"><div class="stat-l">Pendiente pago</div><div class="stat-v ${totalPend>0?'r':''}">${numFmt(totalPend)} €</div></div>
+    <div class="stat"><div class="stat-l">Sin pagar</div><div class="stat-v w">${pend.length}</div></div>
+    <div class="stat"><div class="stat-l">Total</div><div class="stat-v">${DATA.proveedores.length}</div></div>`;
+  // Grupos
+  const grupos = document.getElementById('proveedoresGrupos');
+  if(grupos) {
+    const map = {};
+    pend.forEach(p => { const k=p.nombre+'|'+p.vencimiento; if(!map[k]) map[k]={nombre:p.nombre,vencimiento:p.vencimiento,items:[]}; map[k].items.push(p); });
+    const arr2 = Object.values(map).filter(g => g.items.length>1);
+    grupos.innerHTML = arr2.length===0 ? '' : '<div class="stitle" style="margin-bottom:8px"><div class="stitle-bar"></div>Transferencias agrupadas</div>' +
+      arr2.map(g => { const total=g.items.reduce((s,i)=>s+(i.importe||0),0); return `<div class="card bl-p"><div style="font-weight:700">${g.nombre} <span style="color:var(--text3)">vto ${fmt(g.vencimiento)}</span></div><div style="color:var(--purple);font-weight:800">${numFmt(total)} €</div></div>`; }).join('');
+  }
+  let arr = [...DATA.proveedores];
+  if(filtro==='pendiente') arr = arr.filter(p => !p.programada&&!p.pagado);
+  else if(filtro==='programada') arr = arr.filter(p => p.programada&&!p.pagado);
+  else if(filtro==='pagado') arr = arr.filter(p => p.pagado);
+  if(txt) arr = arr.filter(p => (p.nombre||'').toLowerCase().includes(txt));
+  arr.sort((a,b) => { const d=(a.vencimiento||'').localeCompare(b.vencimiento||''); return d||(a.nombre||'').localeCompare(b.nombre||''); });
+  const tbody = document.getElementById('proveedoresTbody'); if(!tbody) return;
+  if(!arr.length) { tbody.innerHTML='<tr><td colspan="8" class="empty">Sin facturas.</td></tr>'; return; }
+  tbody.innerHTML = arr.map(p => {
+    const venc = p.vencimiento<todayStr&&!p.pagado;
+    return `<tr>
+      <td style="font-weight:600">${p.nombre}</td><td>${p.nFactura||'—'}</td>
+      <td style="color:${venc?'var(--red)':'inherit'};font-weight:${venc?700:400}">${fmt(p.vencimiento)}${venc?' ⚠️':''}</td>
+      <td style="text-align:right;font-weight:700;color:${p.importe<0?'var(--green)':'inherit'}">${numFmt(p.importe)} €</td>
+      <td>${p.fechaTransf?fmt(p.fechaTransf):'—'}</td>
+      <td style="text-align:center"><span style="cursor:pointer;font-size:17px" onclick="toggleProvEstado('${p.id}','programada')" title="Programada">${p.programada?'🔵':'⬜'}</span></td>
+      <td style="text-align:center"><span style="cursor:pointer;font-size:17px" onclick="toggleProvEstado('${p.id}','pagado')" title="Pagado">${p.pagado?'✅':'⬜'}</span></td>
+      <td style="display:flex;gap:4px"><button class="btn btn-ghost btn-xs" onclick="openModalProveedor('${p.id}')">✏️</button><button class="btn btn-danger btn-xs" onclick="deleteProveedor('${p.id}')">🗑</button></td>
+    </tr>`;
+  }).join('');
+}
+function openModalFactura(id) {
+  const f = id ? DATA.facturas.find(x => x.id === id) : null;
+  document.getElementById('facId').value = f?.id || '';
+  document.getElementById('facNFactura').value = f?.nFactura || '';
+  document.getElementById('facCliente').value = f?.cliente || '';
+  document.getElementById('facObra').value = f?.obra || '';
+  document.getElementById('facImporte').value = f?.importe || '';
+  document.getElementById('facVencimiento').value = f?.vencimiento || '';
+  document.getElementById('facFechaCobro').value = f?.fechaCobro || '';
+  document.getElementById('facCobrada').checked = f?.cobrada || false;
+  document.getElementById('facNota').value = f?.nota || '';
+  // Datalist clientes
+  const dl = document.getElementById('listClientesExist');
+  const clientes = [...new Set(DATA.facturas.map(x => x.cliente).filter(Boolean))];
+  dl.innerHTML = clientes.map(c => `<option value="${c}">`).join('');
+  openModal('modalFactura');
+}
+function toggleCobradaModal() {
+  const cobrada = document.getElementById('facCobrada').checked;
+  if (cobrada && !document.getElementById('facFechaCobro').value) {
+    document.getElementById('facFechaCobro').value = today();
+  }
+}
+async function saveFactura() {
+  const nFactura = document.getElementById('facNFactura').value.trim();
+  const cliente = document.getElementById('facCliente').value.trim();
+  const vencimiento = document.getElementById('facVencimiento').value;
+  if (!nFactura || !cliente || !vencimiento) { toast('Rellena los campos obligatorios','err'); return; }
+  const id = document.getElementById('facId').value || uid();
+  const item = { id, nFactura, cliente, obra: document.getElementById('facObra').value.trim(), importe: parseFloat(document.getElementById('facImporte').value)||0, vencimiento, cobrada: document.getElementById('facCobrada').checked, fechaCobro: document.getElementById('facFechaCobro').value, nota: document.getElementById('facNota').value.trim() };
+  const arr = [...DATA.facturas];
+  const idx = arr.findIndex(x => x.id === id);
+  if (idx >= 0) arr[idx] = item; else arr.push(item);
+  await saveData('facturas', arr);
+  closeModal('modalFactura');
+  toast('Factura guardada','ok');
+}
+async function toggleCobrada(id) {
+  const arr = [...DATA.facturas];
+  const f = arr.find(x => x.id === id); if (!f) return;
+  f.cobrada = !f.cobrada;
+  if (f.cobrada && !f.fechaCobro) f.fechaCobro = today();
+  await saveData('facturas', arr);
+}
+async function deleteFactura(id) {
+  if (!confirm('¿Eliminar esta factura?')) return;
+  await saveData('facturas', DATA.facturas.filter(x => x.id !== id));
+}
+function renderFacturas() {
+  const todayStr = today();
+  const txt = (document.getElementById('filtroFacturaTexto')?.value||'').toLowerCase();
+  const estado = document.getElementById('filtroFacturaEstado')?.value||'todas';
+  // Stats
+  const pend = DATA.facturas.filter(f => !f.cobrada);
+  const venc = pend.filter(f => f.vencimiento < todayStr);
+  const totalPend = pend.reduce((s,f) => s + (f.importe||0), 0);
+  const stats = document.getElementById('statsFacturas');
+  if (stats) stats.innerHTML = `
+    <div class="stat"><div class="stat-l">Pendiente cobro</div><div class="stat-v ${totalPend>0?'w':''}">${numFmt(totalPend)} €</div></div>
+    <div class="stat"><div class="stat-l">Vencidas</div><div class="stat-v r">${venc.length}</div></div>
+    <div class="stat"><div class="stat-l">Cobradas</div><div class="stat-v g">${DATA.facturas.filter(f=>f.cobrada).length}</div></div>`;
+
+  let arr = [...DATA.facturas];
+  if (estado === 'pendiente') arr = arr.filter(f => !f.cobrada && f.vencimiento >= todayStr);
+  if (estado === 'vencida') arr = arr.filter(f => !f.cobrada && f.vencimiento < todayStr);
+  if (estado === 'cobrada') arr = arr.filter(f => f.cobrada);
+  if (txt) arr = arr.filter(f => [f.nFactura,f.cliente,f.obra,f.nota].join(' ').toLowerCase().includes(txt));
+  arr.sort((a,b) => (a.vencimiento||'').localeCompare(b.vencimiento||''));
+
+  const tbody = document.getElementById('facturasTbody');
+  if (!tbody) return;
+  if (arr.length === 0) { tbody.innerHTML = '<tr><td colspan="9" class="empty">Sin facturas.</td></tr>'; return; }
+  tbody.innerHTML = arr.map(f => {
+    const vencida = !f.cobrada && f.vencimiento < todayStr;
+    return `<tr>
+      <td style="font-weight:700">${f.nFactura}</td>
+      <td>${f.cliente}</td>
+      <td style="font-size:11px;color:var(--text3)">${f.obra||'—'}</td>
+      <td style="text-align:right;font-weight:700">${numFmt(f.importe)} €</td>
+      <td style="color:${vencida?'var(--red)':'inherit'};font-weight:${vencida?'700':'400'}">${fmt(f.vencimiento)}${vencida?' ⚠️':''}</td>
+      <td style="text-align:center"><span style="cursor:pointer;font-size:18px" onclick="toggleCobrada('${f.id}')">${f.cobrada?'✅':'⬜'}</span></td>
+      <td style="font-size:11px;color:var(--text3)">${f.fechaCobro?fmt(f.fechaCobro):'—'}</td>
+      <td style="font-size:11px;color:var(--text3);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.nota||''}">${f.nota||'—'}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-ghost btn-xs" onclick="openModalFactura('${f.id}')">✏️</button>
+        <button class="btn btn-danger btn-xs" onclick="deleteFactura('${f.id}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════
+// DIETAS VALIDACIÓN
+// ════════════════════════════════════════════════════════
+function openModalNuevaRemesa() {
+  const mes = today().substring(0,7);
+  document.getElementById('remesaMes').value = mes;
+  document.getElementById('remesaTrabajador').value = '';
+  openModal('modalNuevaRemesa');
+}
+async function saveNuevaRemesa() {
+  const trab = document.getElementById('remesaTrabajador').value;
+  const mes = document.getElementById('remesaMes').value;
+  if (!trab || !mes) { toast('Rellena todos los campos','err'); return; }
+  // Comprobar que no existe una remesa abierta para ese trabajador+mes
+  const existente = DATA.remesas.find(r => r.trabajador === trab && r.mes === mes && !r.cerrada);
+  if (existente) { toast('Ya existe una remesa abierta para este trabajador y mes','err'); return; }
+  const ticketsPend = GASTOS_BLMX.filter(g => {
+    const enOtra = DATA.remesas.some(r => (r.tickets||[]).some(t => String(t.gastoId)===String(g.id)));
+    return g.tipo==='ticket' && g.trabajador===trab && g.fecha && g.fecha.startsWith(mes) && !enOtra;
+  }).map(g => ({gastoId:g.id,fecha:g.fecha,desc:g.desc||'Ticket',importe:g.importe,driveLink:g.driveLink||null,isImage:g.isImage||false,estado:'pendiente'}));
+  const nueva = { id: uid(), trabajador: trab, mes, cerrada: false, pagada: false, creadaEl: today(), tickets: ticketsPend };
+  const arr = [...DATA.remesas, nueva];
+  await saveData('remesas', arr);
+  closeModal('modalNuevaRemesa');
+  toast('Remesa creada','ok');
+  abrirDetalleRemesa(nueva.id);
+}
+function renderRemesas() {
+  const filtroT = document.getElementById('filtroRemesaTrab')?.value || 'todos';
+  const filtroM = document.getElementById('filtroRemesaMes')?.value || '';
+  let arr = [...DATA.remesas];
+  if (filtroT !== 'todos') arr = arr.filter(r => r.trabajador === filtroT);
+  if (filtroM) arr = arr.filter(r => r.mes === filtroM);
+  arr.sort((a,b) => (b.mes||'').localeCompare(a.mes||''));
+  const list = document.getElementById('remesasList');
+  if (!list) return;
+  if (arr.length === 0) { list.innerHTML = '<div class="empty">Sin remesas. Crea la primera →</div>'; return; }
+  list.innerHTML = arr.map(r => {
+    const totalR = calcTotalRemesa(r);
+    const estado = r.cerrada ? '<span class="badge b-m">Cerrada</span>' : '<span class="badge b-w">En curso</span>';
+    return `<div class="card ${r.cerrada?'bl-g':'bl-w'}" style="cursor:pointer" onclick="abrirDetalleRemesa('${r.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div style="font-weight:800;font-size:14px;margin-bottom:4px">${r.trabajador} · ${r.mes}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            ${estado}
+            ${r.pagada?'<span class="badge b-ok">✅ Pagado</span>':''}
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:800;font-size:18px;color:var(--accent)">${numFmt(totalR)} €</div>
+          <div style="font-size:10px;color:var(--text3)">${(r.tickets||[]).length} tickets</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function calcTotalRemesa(r) {
+  return (r.tickets||[]).filter(t => t.estado !== 'rechazado').reduce((s,t) => s + (t.importeCorregido !== undefined ? t.importeCorregido : t.importe||0), 0);
+}
+function calcTotalValidado(r) {
+  return (r.tickets||[]).filter(t=>t.estado==='validado'||t.estado==='modificado').reduce((s,t)=>s+(t.importeCorregido!==undefined?t.importeCorregido:t.importe||0),0);
+}
+
+function abrirDetalleRemesa(id) {
+  currentRemesaId = id;
+  goScreen('screenDetalleRemesa');
+  cargarDetalleRemesa();
+}
+
+async function cargarDetalleRemesa() {
+  const id = currentRemesaId;
+  const remesa = DATA.remesas.find(r => r.id === id); if (!remesa) return;
+
+  // Refrescar tickets desde GASTOS_BLMX (solo tipo ticket, pendientes de validar)
+  if (!remesa.cerrada) {
+    const ticketsPrevIds = (remesa.tickets||[]).map(t => String(t.gastoId));
+    const nuevos = GASTOS_BLMX.filter(g => {
+      return g.tipo === 'ticket' && g.trabajador === remesa.trabajador
+        && g.fecha && g.fecha.startsWith(remesa.mes)
+        && !ticketsPrevIds.includes(String(g.id))
+        && !estaEnRemesaCerrada(g.id, remesa.trabajador, id);
+    });
+    if (nuevos.length > 0) {
+      const arr = [...DATA.remesas];
+      const r = arr.find(x => x.id === id);
+      if(!r.tickets)r.tickets=[];
+      nuevos.forEach(g => r.tickets.push({ gastoId: g.id, fecha: g.fecha, desc: g.desc||'Ticket', importe: g.importe, driveLink: g.driveLink||null, isImage: g.isImage||false, estado: 'pendiente' }));
+      await saveData('remesas', arr);
+      return; // el listener actualizará
+    }
+  }
+
+  const titulo = document.getElementById('detalleRemesaTitulo');
+  if (titulo) titulo.textContent = `${remesa.trabajador} · ${remesa.mes}`;
+
+  const btnCerrar = document.getElementById('btnCerrarRemesa');
+  const btnDeshacer = document.getElementById('btnDeshacerRemesa');
+  if (btnCerrar) btnCerrar.style.display = remesa.cerrada ? 'none' : '';
+  if (btnDeshacer) {
+    // Solo se puede deshacer si no hay remesa posterior del mismo trabajador
+    const hasPosterior = DATA.remesas.some(r => r.id !== id && r.trabajador === remesa.trabajador && r.creadaEl > remesa.creadaEl);
+    btnDeshacer.style.display = remesa.cerrada && !hasPosterior ? '' : 'none';
+  }
+
+  const total = calcTotalRemesa(remesa);
+  const aprobados = (remesa.tickets||[]).filter(t => t.estado !== 'rechazado');
+  const stats = document.getElementById('detalleRemesaStats');
+  const totalValidado = calcTotalValidado(remesa);
+  if (stats) stats.innerHTML = `
+    <div class="stat"><div class="stat-l">Total remesa</div><div class="stat-v g">${numFmt(total)} €</div></div>
+    <div class="stat"><div class="stat-l">✅ Validado</div><div class="stat-v g">${numFmt(totalValidado)} €</div></div>
+    <div class="stat"><div class="stat-l">Tickets</div><div class="stat-v">${aprobados.length}</div></div>
+    <div class="stat"><div class="stat-l">Rechazados</div><div class="stat-v r">${(remesa.tickets||[]).filter(t=>t.estado==='rechazado').length}</div></div>`;
+
+  // Desglose por obra
+  const porObra = {};
+  aprobados.forEach(t => {
+    const gasto = GASTOS_BLMX.find(g => String(g.id) === String(t.gastoId));
+    const obra = gasto?.obra || 'Sin obra';
+    const imp = t.importeCorregido !== undefined ? t.importeCorregido : t.importe||0;
+    porObra[obra] = (porObra[obra]||0) + imp;
+  });
+  const desglose = document.getElementById('detalleRemesaDesglose');
+  if (desglose) {
+    desglose.innerHTML = '<div class="stitle" style="margin-bottom:8px"><div class="stitle-bar"></div>Desglose por obra</div>' +
+      Object.entries(porObra).map(([obra, imp]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)"><span>${obra}</span><span style="font-weight:700">${numFmt(imp)} €</span></div>`).join('') +
+      `<div style="display:flex;justify-content:space-between;padding:8px 0;font-weight:800;font-size:15px"><span>TOTAL</span><span style="color:var(--accent)">${numFmt(total)} €</span></div>`;
+  }
+
+  // Tickets
+  const ticketsDiv = document.getElementById('detalleRemesaTickets');
+  if (!ticketsDiv) return;
+  const tickets = remesa.tickets || [];
+  if (tickets.length === 0) { ticketsDiv.innerHTML = '<div class="empty">Sin tickets cargados para este período.</div>'; return; }
+  ticketsDiv.innerHTML = tickets.map(t => {
+    const estadoColor = t.estado==='rechazado' ? 'var(--red)' : t.estado==='modificado' ? 'var(--warn)' : t.estado==='validado' ? 'var(--green)' : 'var(--text3)';
+    const impFinal = t.importeCorregido !== undefined ? t.importeCorregido : t.importe;
+    return `<div class="card ${t.estado==='rechazado'?'bl-r':t.estado==='validado'?'bl-g':t.estado==='modificado'?'bl-w':'bl-b'}">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        ${t.driveLink ? `<img src="${t.driveLink}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer;flex-shrink:0" onclick="window.open('${t.driveLink}','_blank')" onerror="this.outerHTML='<div style=\\'width:56px;height:56px;border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0\\'>🧾</div>'">` : '<div style="width:56px;height:56px;border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🧾</div>'}
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px">${t.desc||'Ticket'}</div>
+          <div style="font-size:11px;color:var(--text3);margin:2px 0">${fmt(t.fecha)}</div>
+          <div style="font-weight:800;font-size:16px;color:var(--accent)">${numFmt(impFinal)} €
+            ${t.importeCorregido!==undefined?`<span style="font-size:10px;color:var(--text3);text-decoration:line-through;margin-left:4px">${numFmt(t.importe)} €</span>`:''}
+          </div>
+          <span class="badge" style="background:transparent;color:${estadoColor};padding:0">${t.estado==='rechazado'?'❌ Rechazado':t.estado==='validado'?'✅ Validado':t.estado==='modificado'?'✏️ Importe corregido':'⏳ Pendiente'}</span>
+          ${t.motivoRechazo?`<div style="font-size:11px;color:var(--red);margin-top:4px">Motivo: ${t.motivoRechazo}</div>`:''}
+        </div>
+      </div>
+      ${!remesa.cerrada ? `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        ${t.estado!=='validado'&&t.estado!=='rechazado'?`<button class="btn btn-green btn-xs" onclick="validarTicket('${id}','${t.gastoId}')">✅ Validar</button>`:''}
+        ${t.estado!=='rechazado'?`<button class="btn btn-danger btn-xs" onclick="abrirRechazarTicket('${id}','${t.gastoId}','${t.desc||'Ticket'}')">❌ Rechazar</button>`:''}
+        <button class="btn btn-warn btn-xs" onclick="abrirCorregirImporte('${id}','${t.gastoId}','${t.desc||'Ticket'}',${impFinal})">✏️ Corregir importe</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function estaEnRemesaCerrada(gastoId, trabajador, excluirId) {
+  return DATA.remesas.some(r => r.cerrada && r.id !== excluirId && r.trabajador === trabajador && (r.tickets||[]).some(t => String(t.gastoId) === String(gastoId)));
+}
+
+async function validarTicket(remesaId, gastoId) {
+  const arr = [...DATA.remesas];
+  const r = arr.find(x => x.id === remesaId); if (!r) return;
+  const t = r.tickets.find(x => String(x.gastoId) === String(gastoId)); if (!t) return;
+  t.estado = 'validado'; t.motivoRechazo = '';
+  await saveData('remesas', arr);
+}
+function abrirRechazarTicket(remesaId, gastoId, desc) {
+  document.getElementById('rechazarTicketId').value = remesaId + '|' + gastoId;
+  document.getElementById('rechazarTicketInfo').textContent = `Ticket: ${desc}`;
+  document.getElementById('rechazarMotivo').value = '';
+  openModal('modalRechazarTicket');
+}
+async function confirmarRechazar() {
+  const motivo = document.getElementById('rechazarMotivo').value.trim();
+  if (!motivo) { toast('Indica el motivo','err'); return; }
+  const [remesaId, gastoId] = document.getElementById('rechazarTicketId').value.split('|');
+  const arr = [...DATA.remesas];
+  const r = arr.find(x => x.id === remesaId); if (!r) return;
+  const t = r.tickets.find(x => String(x.gastoId) === String(gastoId)); if (!t) return;
+  t.estado = 'rechazado'; t.motivoRechazo = motivo;
+  // Notificar en GASTOS_BLMX
+  const gastoIdx = GASTOS_BLMX.findIndex(g => String(g.id) === String(gastoId));
+  if (gastoIdx >= 0) {
+    GASTOS_BLMX[gastoIdx].rechazado = true;
+    GASTOS_BLMX[gastoIdx].motivoRechazo = motivo;
+    try { await firebase.database().ref('obra_db/gastos/' + gastoIdx).update({ rechazado: true, motivoRechazo: motivo }); } catch(e) {}
+  }
+  await saveData('remesas', arr);
+  closeModal('modalRechazarTicket');
+  toast('Ticket rechazado','ok');
+}
+function abrirCorregirImporte(remesaId, gastoId, desc, importeActual) {
+  document.getElementById('corregirTicketId').value = remesaId + '|' + gastoId;
+  document.getElementById('corregirTicketInfo').textContent = `Ticket: ${desc} (actual: ${numFmt(importeActual)} €)`;
+  document.getElementById('corregirImporte').value = importeActual;
+  openModal('modalCorregirImporte');
+}
+async function confirmarCorregir() {
+  const nuevoImporte = parseFloat(document.getElementById('corregirImporte').value);
+  if (isNaN(nuevoImporte) || nuevoImporte < 0) { toast('Importe inválido','err'); return; }
+  const [remesaId, gastoId] = document.getElementById('corregirTicketId').value.split('|');
+  const arr = [...DATA.remesas];
+  const r = arr.find(x => x.id === remesaId); if (!r) return;
+  const t = r.tickets.find(x => String(x.gastoId) === String(gastoId)); if (!t) return;
+  t.importeCorregido = nuevoImporte; t.estado = 'modificado';
+  await saveData('remesas', arr);
+  closeModal('modalCorregirImporte');
+  toast('Importe corregido','ok');
+}
+async function cerrarRemesa() {
+  if (!confirm('¿Cerrar esta remesa? Una vez cerrada no podrá modificarse (salvo que no haya remesa posterior).')) return;
+  const arr = [...DATA.remesas];
+  const r = arr.find(x => x.id === currentRemesaId); if (!r) return;
+  r.cerrada = true; r.cerradaEl = today();
+  await saveData('remesas', arr);
+  toast('Remesa cerrada ✅', 'ok');
+}
+async function deshacerCierreRemesa() {
+  if (!confirm('¿Reabrir esta remesa?')) return;
+  const arr = [...DATA.remesas];
+  const r = arr.find(x => x.id === currentRemesaId); if (!r) return;
+  r.cerrada = false; r.cerradaEl = '';
+  await saveData('remesas', arr);
+  toast('Remesa reabierta','ok');
+}
+async function togglePagadaRemesa(id) {
+  const arr = [...DATA.remesas];
+  const r = arr.find(x => x.id === id); if (!r) return;
+  r.pagada = !r.pagada;
+  await saveData('remesas', arr);
+}
+function exportarRemesa() {
+  const r = DATA.remesas.find(x => x.id === currentRemesaId); if (!r) return;
+  if (typeof XLSX === 'undefined') { toast('Librería Excel no disponible','err'); return; }
+  const rows = (r.tickets||[]).map(t => {
+    const g = GASTOS_BLMX.find(x => String(x.id) === String(t.gastoId)) || {};
+    return { 'Trabajador': r.trabajador, 'Mes': r.mes, 'Fecha': t.fecha, 'Descripción': t.desc||'', 'Obra': g.obra||'', 'Importe original': t.importe||0, 'Importe final': t.importeCorregido!==undefined?t.importeCorregido:t.importe||0, 'Estado': t.estado||'pendiente', 'Motivo rechazo': t.motivoRechazo||'' };
+  });
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Remesa');
+  XLSX.writeFile(wb, `Remesa_${r.trabajador}_${r.mes}.xlsx`);
+}
+
+// ════════════════════════════════════════════════════════
+// VEHÍCULOS
+// ════════════════════════════════════════════════════════
+function openModalVehiculo(id) {
+  const v = id ? DATA.vehiculos.find(x => x.id === id) : null;
+  document.getElementById('vehId').value = v?.id || '';
+  document.getElementById('vehMatricula').value = v?.matricula || '';
+  document.getElementById('vehModelo').value = v?.modelo || '';
+  document.getElementById('vehTrabajador').value = v?.trabajador || '';
+  document.getElementById('vehEstado').value = v?.estado || 'activo';
+  document.getElementById('vehITV').value = v?.itv || '';
+  document.getElementById('vehITVAviso').value = v?.itvAviso || 30;
+  document.getElementById('vehSegCompania').value = v?.segCompania || '';
+  document.getElementById('vehSegPoliza').value = v?.segPoliza || '';
+  document.getElementById('vehSegRenovacion').value = v?.segRenovacion || '';
+  document.getElementById('vehNotas').value = v?.notas || '';
+  openModal('modalVehiculo');
+}
+async function saveVehiculo() {
+  const matricula = document.getElementById('vehMatricula').value.trim();
+  if (!matricula) { toast('Introduce la matrícula','err'); return; }
+  const id = document.getElementById('vehId').value || uid();
+  const item = { id, matricula, modelo: document.getElementById('vehModelo').value.trim(), trabajador: document.getElementById('vehTrabajador').value.trim(), estado: document.getElementById('vehEstado').value, itv: document.getElementById('vehITV').value, itvAviso: parseInt(document.getElementById('vehITVAviso').value)||30, segCompania: document.getElementById('vehSegCompania').value.trim(), segPoliza: document.getElementById('vehSegPoliza').value.trim(), segRenovacion: document.getElementById('vehSegRenovacion').value, notas: document.getElementById('vehNotas').value.trim(), mantenimientos: (DATA.vehiculos.find(x=>x.id===id)?.mantenimientos)||[] };
+  const arr = [...DATA.vehiculos];
+  const idx = arr.findIndex(x => x.id === id);
+  if (idx >= 0) arr[idx] = item; else arr.push(item);
+  await saveData('vehiculos', arr);
+  if (item.itv) {
+    const docs = [...DATA.documentos];
+    let dItv = docs.find(d => d.tipo==='ITV' && d.autoRef===item.id);
+    if(dItv){dItv.vencimiento=item.itv;dItv.aviso=item.itvAviso||30;dItv.persona=item.matricula;}
+    else docs.push({id:uid(),tipo:'ITV',persona:item.matricula,vencimiento:item.itv,aviso:item.itvAviso||30,notas:('Vehículo '+(item.modelo||'')).trim(),autoRef:item.id});
+    await saveData('documentos', docs);
+  }
+  if (item.segCompania && item.segRenovacion) {
+    const segs = [...DATA.seguros];
+    let sVeh = segs.find(s => s.vehiculoRef===item.id);
+    if(sVeh){sVeh.compania=item.segCompania;sVeh.poliza=item.segPoliza||sVeh.poliza;sVeh.vencimiento=item.segRenovacion;}
+    else segs.push({id:uid(),tipo:'Vehículo',compania:item.segCompania,poliza:item.segPoliza||'',vencimiento:item.segRenovacion,aviso:30,estado:'activa',notas:'Vehículo '+item.matricula,vehiculoRef:item.id});
+    await saveData('seguros', segs);
+  }
+  closeModal('modalVehiculo');
+  toast('Vehículo guardado ✅','ok');
+}
+async function deleteVehiculo(id) {
+  if (!confirm('¿Eliminar este vehículo?')) return;
+  await saveData('vehiculos', DATA.vehiculos.filter(x => x.id !== id));
+}
+function openModalMantenimiento(vehId, mantId) {
+  const v = DATA.vehiculos.find(x => x.id === vehId);
+  const m = mantId ? (v?.mantenimientos||[]).find(x => x.id === mantId) : null;
+  document.getElementById('mantVehId').value = vehId;
+  document.getElementById('mantId').value = m?.id || '';
+  document.getElementById('mantFecha').value = m?.fecha || today();
+  document.getElementById('mantTipo').value = m?.tipo || 'Cambio aceite';
+  document.getElementById('mantDesc').value = m?.desc || '';
+  document.getElementById('mantCoste').value = m?.coste || '';
+  openModal('modalMantenimiento');
+}
+async function saveMantenimiento() {
+  const vehId = document.getElementById('mantVehId').value;
+  const tipo = document.getElementById('mantTipo').value;
+  const fecha = document.getElementById('mantFecha').value;
+  if (!fecha) { toast('Selecciona una fecha','err'); return; }
+  const id = document.getElementById('mantId').value || uid();
+  const item = { id, fecha, tipo, desc: document.getElementById('mantDesc').value.trim(), coste: parseFloat(document.getElementById('mantCoste').value)||0 };
+  const arr = [...DATA.vehiculos];
+  const v = arr.find(x => x.id === vehId); if (!v) return;
+  if (!v.mantenimientos) v.mantenimientos = [];
+  const idx = v.mantenimientos.findIndex(x => x.id === id);
+  if (idx >= 0) v.mantenimientos[idx] = item; else v.mantenimientos.push(item);
+  v.mantenimientos.sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
+  await saveData('vehiculos', arr);
+  closeModal('modalMantenimiento');
+  toast('Mantenimiento guardado','ok');
+}
+function renderVehiculos() {
+  const list = document.getElementById('vehiculosList');
+  if (!list) return;
+  const activos = DATA.vehiculos.filter(v => v.estado !== 'baja');
+  const bajas = DATA.vehiculos.filter(v => v.estado === 'baja');
+  const todayStr = today();
+  const renderVeh = (arr) => arr.map(v => {
+    const diffITV = diffDays(v.itv);
+    const itvOk = diffITV !== null && diffITV > (v.itvAviso||30);
+    const itvWarn = diffITV !== null && diffITV <= (v.itvAviso||30) && diffITV >= 0;
+    const itvRed = diffITV !== null && diffITV < 0;
+    const itvBadge = v.itv ? `<span class="badge ${itvRed?'b-r':itvWarn?'b-w':'b-ok'}">${itvRed?'⚠️ ITV vencida':itvWarn?`⏰ ITV en ${diffITV}d`:'✅ ITV ok'}</span>` : '';
+    const mants = (v.mantenimientos||[]).slice(0,2).map(m => `<div style="font-size:11px;color:var(--text3)">🔧 ${fmt(m.fecha)} · ${m.tipo}</div>`).join('');
+    return `<div class="card ${v.estado==='baja'?'bl-grey':itvRed?'bl-r':itvWarn?'bl-w':'bl-g'}" style="${v.estado==='baja'?'opacity:.6':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div style="font-weight:800;font-size:16px">${v.matricula} <span style="font-size:12px;color:var(--text3);font-weight:400">${v.modelo||''}</span></div>
+          ${v.trabajador?`<div style="font-size:12px;color:var(--text3)">👷 ${v.trabajador}</div>`:''}
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+            ${itvBadge}
+            ${v.segCompania?`<span class="badge b-b">🛡️ ${v.segCompania}</span>`:''}
+          </div>
+          ${v.itv?`<div style="font-size:11px;color:var(--text3);margin-top:4px">Próxima ITV: ${fmt(v.itv)}</div>`:''}
+          ${mants ? `<div style="margin-top:6px">${mants}</div>` : ''}
+          ${v.notas?`<div style="font-size:11px;color:var(--text3);margin-top:4px">${v.notas}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+          <button class="btn btn-ghost btn-xs" onclick="openModalVehiculo('${v.id}')">✏️ Editar</button>
+          <button class="btn btn-blue btn-xs" onclick="openModalMantenimiento('${v.id}')">🔧 Mant.</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteVehiculo('${v.id}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.innerHTML = '';
+  if (activos.length > 0) list.innerHTML += '<div class="stitle" style="margin-bottom:8px"><div class="stitle-bar"></div>Vehículos activos</div>' + renderVeh(activos);
+  if (bajas.length > 0) list.innerHTML += '<div class="stitle" style="margin-top:16px;margin-bottom:8px"><div class="stitle-bar"></div>Dados de baja</div>' + renderVeh(bajas);
+  if (DATA.vehiculos.length === 0) list.innerHTML = '<div class="empty">Sin vehículos registrados.</div>';
+}
+
+// ════════════════════════════════════════════════════════
+// SEGUROS
+// ════════════════════════════════════════════════════════
+function setTabSeguros(tab) {
+  currentTabSeguros = tab;
+  document.querySelectorAll('#segurosTabs .tab').forEach(t => t.classList.remove('active'));
+  const t = document.querySelector(`#segurosTabs [data-tab="${tab}"]`);
+  if (t) t.classList.add('active');
+  document.getElementById('segurosPanel-polizas').style.display = tab === 'polizas' ? '' : 'none';
+  document.getElementById('segurosPanel-siniestros').style.display = tab === 'siniestros' ? '' : 'none';
+  renderSeguros();
+}
+function openModalSeguro(id) {
+  const s = id ? DATA.seguros.find(x => x.id === id) : null;
+  document.getElementById('segId').value = s?.id || '';
+  document.getElementById('segTipo').value = s?.tipo || 'Responsabilidad Civil';
+  document.getElementById('segCompania').value = s?.compania || '';
+  document.getElementById('segPoliza').value = s?.poliza || '';
+  document.getElementById('segVencimiento').value = s?.vencimiento || '';
+  document.getElementById('segAviso').value = s?.aviso || 30;
+  document.getElementById('segEstado').value = s?.estado || 'activa';
+  document.getElementById('segNotas').value = s?.notas || '';
+  openModal('modalSeguro');
+}
+async function saveSeguro() {
+  const compania = document.getElementById('segCompania').value.trim();
+  const vencimiento = document.getElementById('segVencimiento').value;
+  if (!compania || !vencimiento) { toast('Rellena compañía y vencimiento','err'); return; }
+  const id = document.getElementById('segId').value || uid();
+  const item = { id, tipo: document.getElementById('segTipo').value, compania, poliza: document.getElementById('segPoliza').value.trim(), vencimiento, aviso: parseInt(document.getElementById('segAviso').value)||30, estado: document.getElementById('segEstado').value, notas: document.getElementById('segNotas').value.trim() };
+  const arr = [...DATA.seguros];
+  const idx = arr.findIndex(x => x.id === id);
+  if (idx >= 0) arr[idx] = item; else arr.push(item);
+  await saveData('seguros', arr);
+  closeModal('modalSeguro');
+  toast('Seguro guardado','ok');
+}
+async function deleteSeguro(id) {
+  if (!confirm('¿Eliminar esta póliza?')) return;
+  await saveData('seguros', DATA.seguros.filter(x => x.id !== id));
+}
+function openModalSiniestro(id) {
+  const s = id ? DATA.siniestros.find(x => x.id === id) : null;
+  document.getElementById('sinId').value = s?.id || '';
+  document.getElementById('sinFecha').value = s?.fecha || today();
+  document.getElementById('sinPoliza').value = s?.poliza || '';
+  document.getElementById('sinDesc').value = s?.desc || '';
+  document.getElementById('sinSeguimiento').value = s?.seguimiento || '';
+  document.getElementById('sinEstado').value = s?.estado || 'en_curso';
+  openModal('modalSiniestro');
+}
+async function saveSiniestro() {
+  const desc = document.getElementById('sinDesc').value.trim();
+  if (!desc) { toast('Describe el siniestro','err'); return; }
+  const id = document.getElementById('sinId').value || uid();
+  const item = { id, fecha: document.getElementById('sinFecha').value, poliza: document.getElementById('sinPoliza').value.trim(), desc, seguimiento: document.getElementById('sinSeguimiento').value.trim(), estado: document.getElementById('sinEstado').value };
+  const arr = [...DATA.siniestros];
+  const idx = arr.findIndex(x => x.id === id);
+  if (idx >= 0) arr[idx] = item; else arr.push(item);
+  await saveData('siniestros', arr);
+  closeModal('modalSiniestro');
+  toast('Siniestro guardado','ok');
+}
+async function deleteSiniestro(id) {
+  if (!confirm('¿Eliminar este siniestro?')) return;
+  await saveData('siniestros', DATA.siniestros.filter(x => x.id !== id));
+}
+function renderSeguros() {
+  if (currentTabSeguros === 'polizas') {
+    const list = document.getElementById('polizasList');
+    if (!list) return;
+    if (DATA.seguros.length === 0) { list.innerHTML = '<div class="empty">Sin pólizas registradas.</div>'; return; }
+    const activas = DATA.seguros.filter(s => s.estado === 'activa');
+    const bajas = DATA.seguros.filter(s => s.estado === 'baja');
+    const renderPol = (arr) => arr.map(s => {
+      const diff = diffDays(s.vencimiento);
+      const aviso = s.aviso || 30;
+      const vencida = diff !== null && diff < 0;
+      const pronto = diff !== null && diff <= aviso && diff >= 0;
+      return `<div class="card ${vencida?'bl-r':pronto?'bl-w':'bl-g'}" style="${s.estado==='baja'?'opacity:.6':''}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+          <div>
+            <div style="font-weight:800;font-size:14px">${s.tipo}</div>
+            <div style="font-size:12px;color:var(--text3)">${s.compania} · ${s.poliza||'Sin nº'}</div>
+            <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+              <span class="badge ${vencida?'b-r':pronto?'b-w':'b-ok'}">${vencida?'⚠️ Vencida':pronto?`⏰ Vence en ${diff}d`:'✅ Vigente'}</span>
+              <span class="badge b-m">Vto: ${fmt(s.vencimiento)}</span>
+              ${s.estado==='baja'?'<span class="badge b-m">Baja</span>':''}
+            </div>
+            ${s.notas?`<div style="font-size:11px;color:var(--text3);margin-top:4px">${s.notas}</div>`:''}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+            <button class="btn btn-ghost btn-xs" onclick="openModalSeguro('${s.id}')">✏️</button>
+            <button class="btn btn-danger btn-xs" onclick="deleteSeguro('${s.id}')">🗑</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    list.innerHTML = '';
+    if (activas.length > 0) list.innerHTML += renderPol(activas);
+    if (bajas.length > 0) list.innerHTML += '<div class="stitle" style="margin-top:12px;margin-bottom:8px"><div class="stitle-bar"></div>Dadas de baja</div>' + renderPol(bajas);
+  } else {
+    const list = document.getElementById('siniestrosList');
+    if (!list) return;
+    if (DATA.siniestros.length === 0) { list.innerHTML = '<div class="empty">Sin siniestros registrados.</div>'; return; }
+    list.innerHTML = DATA.siniestros.map(s => `
+      <div class="card ${s.estado==='cerrado'?'bl-g':'bl-w'}">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <div>
+            <div style="font-weight:700;font-size:13px">${s.desc}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">${fmt(s.fecha)} · ${s.poliza||'—'}</div>
+            ${s.seguimiento?`<div style="font-size:12px;color:var(--text2);margin-top:4px">${s.seguimiento}</div>`:''}
+            <span class="badge ${s.estado==='cerrado'?'b-ok':'b-w'}" style="margin-top:6px;display:inline-block">${s.estado==='cerrado'?'✅ Cerrado':'⚠️ En curso'}</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+            <button class="btn btn-ghost btn-xs" onclick="openModalSiniestro('${s.id}')">✏️</button>
+            <button class="btn btn-danger btn-xs" onclick="deleteSiniestro('${s.id}')">🗑</button>
+          </div>
+        </div>
+      </div>`).join('');
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// RENOVACIÓN DE DOCUMENTOS
+// ════════════════════════════════════════════════════════
+function openModalDocumento(id) {
+  const d = id ? DATA.documentos.find(x => x.id === id) : null;
+  document.getElementById('docId').value = d?.id || '';
+  document.getElementById('docTipo').value = d?.tipo || 'DNI';
+  document.getElementById('docPersona').value = d?.persona || '';
+  document.getElementById('docVencimiento').value = d?.vencimiento || '';
+  document.getElementById('docAviso').value = d?.aviso || 30;
+  document.getElementById('docNotas').value = d?.notas || '';
+  // Actualizar datalist personas
+  const listP = document.getElementById('listPersonasDoc');
+  const nombres = TRABAJADORES.map(t => t.nombre);
+  const vehiculosM = DATA.vehiculos.map(v => v.matricula);
+  listP.innerHTML = [...nombres, ...vehiculosM].map(n => `<option value="${n}">`).join('');
+  openModal('modalDocumento');
+}
+function toggleDocTipoPersona() {}
+async function saveDocumento() {
+  const tipo = document.getElementById('docTipo').value;
+  const persona = document.getElementById('docPersona').value.trim();
+  const vencimiento = document.getElementById('docVencimiento').value;
+  if (!persona || !vencimiento) { toast('Rellena persona/vehículo y vencimiento','err'); return; }
+  const id = document.getElementById('docId').value || uid();
+  const item = { id, tipo, persona, vencimiento, aviso: parseInt(document.getElementById('docAviso').value)||30, notas: document.getElementById('docNotas').value.trim() };
+  const arr = [...DATA.documentos];
+  const idx = arr.findIndex(x => x.id === id);
+  if (idx >= 0) arr[idx] = item; else arr.push(item);
+  await saveData('documentos', arr);
+  closeModal('modalDocumento');
+  toast('Documento guardado','ok');
+}
+async function deleteDocumento(id) {
+  if (!confirm('¿Eliminar este documento?')) return;
+  await saveData('documentos', DATA.documentos.filter(x => x.id !== id));
+}
+function openModalRenovarDoc(id) {
+  const d = DATA.documentos.find(x => x.id === id); if (!d) return;
+  document.getElementById('renovDocId').value = id;
+  document.getElementById('renovDocInfo').textContent = `${d.tipo} de ${d.persona} (vto actual: ${fmt(d.vencimiento)})`;
+  document.getElementById('renovDocVencimiento').value = '';
+  document.getElementById('renovDocAviso').value = d.aviso || 30;
+  openModal('modalRenovarDoc');
+}
+async function confirmarRenovacion() {
+  const id = document.getElementById('renovDocId').value;
+  const nuevoVenc = document.getElementById('renovDocVencimiento').value;
+  if (!nuevoVenc) { toast('Selecciona el nuevo vencimiento','err'); return; }
+  const arr = [...DATA.documentos];
+  const d = arr.find(x => x.id === id); if (!d) return;
+  d.vencimiento = nuevoVenc;
+  d.aviso = parseInt(document.getElementById('renovDocAviso').value) || 30;
+  await saveData('documentos', arr);
+  closeModal('modalRenovarDoc');
+  toast('Documento renovado ✅','ok');
+}
+function renderDocumentos() {
+  const filtroP = document.getElementById('filtroDocPersona')?.value || 'todos';
+  const filtroT = document.getElementById('filtroDocTipo')?.value || 'todos';
+  let arr = [...DATA.documentos];
+  if (filtroP !== 'todos') arr = arr.filter(d => d.persona === filtroP);
+  if (filtroT !== 'todos') arr = arr.filter(d => d.tipo === filtroT);
+  arr.sort((a,b) => (a.vencimiento||'').localeCompare(b.vencimiento||''));
+  const list = document.getElementById('documentosList');
+  if (!list) return;
+  if (arr.length === 0) { list.innerHTML = '<div class="empty">Sin documentos registrados.</div>'; return; }
+  const todayStr = today();
+  list.innerHTML = arr.map(d => {
+    const diff = diffDays(d.vencimiento);
+    const aviso = d.aviso || 30;
+    const vencido = diff !== null && diff < 0;
+    const pronto = diff !== null && diff <= aviso && diff >= 0;
+    return `<div class="card ${vencido?'bl-r':pronto?'bl-w':'bl-g'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div style="font-weight:700;font-size:13px">${d.tipo} — ${d.persona}</div>
+          <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
+            <span class="badge ${vencido?'b-r':pronto?'b-w':'b-ok'}">${vencido?'⚠️ VENCIDO':pronto?`⏰ ${diff}d restantes`:'✅ Vigente'}</span>
+            <span class="badge b-m">Vto: ${fmt(d.vencimiento)}</span>
+          </div>
+          ${d.notas?`<div style="font-size:11px;color:var(--text3);margin-top:4px">${d.notas}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+          ${vencido||pronto?`<button class="btn btn-green btn-xs" onclick="openModalRenovarDoc('${d.id}')">🔄 Renovar</button>`:''}
+          <button class="btn btn-ghost btn-xs" onclick="openModalDocumento('${d.id}')">✏️</button>
+          <button class="btn btn-danger btn-xs" onclick="deleteDocumento('${d.id}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════
+// CERRAR OVERLAYS AL HACER CLICK FUERA
+// ════════════════════════════════════════
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', function(e) { if (e.target === this) closeModal(this.id); });
+});
+
+// ════════════════════════════════════════
+// ARRANQUE
+// ════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>

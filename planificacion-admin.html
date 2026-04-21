@@ -3054,6 +3054,7 @@ async function cargarDetalleRemesa() {
       </div>
       ${!remesa.cerrada ? `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
         ${t.estado!=='validado'&&t.estado!=='rechazado'?`<button class="btn btn-green btn-xs" onclick="validarTicket('${id}','${t.gastoId}')">✅ Validar</button>`:''}
+        ${t.estado==='validado'?`<button class="btn btn-blue btn-xs" onclick="desvalidarTicket('${id}','${t.gastoId}')">↩ Desvalidar</button>`:''}
         ${t.estado!=='rechazado'?`<button class="btn btn-danger btn-xs" onclick="abrirRechazarTicket('${id}','${t.gastoId}','${t.desc||'Ticket'}')">❌ Rechazar</button>`:''}
         <button class="btn btn-warn btn-xs" onclick="abrirCorregirImporte('${id}','${t.gastoId}','${t.desc||'Ticket'}',${impFinal})">✏️ Corregir importe</button>
       </div>` : ''}
@@ -3073,6 +3074,15 @@ async function validarTicket(remesaId, gastoId) {
   await saveData('remesas', arr);
   await cargarDetalleRemesa();
   toast('Ticket validado ✅','ok');
+}
+async function desvalidarTicket(remesaId, gastoId) {
+  const arr = [...DATA.remesas];
+  const r = arr.find(x => x.id === remesaId); if (!r) return;
+  const t = r.tickets.find(x => String(x.gastoId) === String(gastoId)); if (!t) return;
+  t.estado = 'pendiente'; t.motivoRechazo = ''; delete t.importeCorregido;
+  await saveData('remesas', arr);
+  await cargarDetalleRemesa();
+  toast('Ticket devuelto a pendiente','ok');
 }
 function abrirRechazarTicket(remesaId, gastoId, desc) {
   document.getElementById('rechazarTicketId').value = remesaId + '|' + gastoId;
@@ -3550,7 +3560,7 @@ async function confirmarEliminarRemesa() {
   await saveData('remesas', arr);
   closeModal('modalEliminarRemesa');
   toast('Remesa eliminada','ok');
-  goScreen('screenDietas');
+  goScreen('screenDietasVal');
 }
 
 </script>

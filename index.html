@@ -4298,14 +4298,27 @@ async function saveGasto() {
     const idx = (DB.gastos||[]).findIndex(x => x.id === gastoEditId);
     if (idx >= 0) {
       const existing = DB.gastos[idx];
+      const eraRechazado = existing.rechazado;
       DB.gastos[idx] = {
         ...existing, tipo, fecha, importe, trabajador, obra, desc,
-        // Solo actualizar archivo si se subió uno nuevo
         driveFileId: driveFileId || existing.driveFileId,
         driveLink: driveLink || existing.driveLink,
         fileName: finalFileName || existing.fileName,
-        isImage: gastoFileToUpload ? (gastoFileToUpload.type?.startsWith('image/') || false) : existing.isImage
+        isImage: gastoFileToUpload ? (gastoFileToUpload.type?.startsWith('image/') || false) : existing.isImage,
+        // Si era rechazado y se sube nueva foto → limpiar rechazo
+        rechazado: eraRechazado && !gastoFileToUpload ? true : false,
+        pendienteRevision: eraRechazado && !gastoFileToUpload ? true : false,
+        motivoRechazo: eraRechazado && !gastoFileToUpload ? existing.motivoRechazo : ''
       };
+      if (eraRechazado && gastoFileToUpload) {
+        try {
+          await firebase.database().ref('obra_db/gastos/' + idx).update({
+            rechazado: false, pendienteRevision: false, motivoRechazo: '',
+            driveLink: driveLink || existing.driveLink,
+            driveFileId: driveFileId || existing.driveFileId
+          });
+        } catch(e) { console.warn('Firebase update rechazo:', e); }
+      }
     }
     gastoEditId = null;
   } else {
@@ -4380,7 +4393,7 @@ function renderDietas() {
         ? `<div class="gasto-thumb-pdf" onclick="window.open('${g.driveLink}','_blank')" title="Ver imagen">🖼️<span style="position:absolute;bottom:2px;right:2px;font-size:8px">✅</span></div>`
         : `<div class="gasto-thumb-pdf" onclick="window.open('${g.driveLink}','_blank')" title="Ver PDF">📄<span style="position:absolute;bottom:2px;right:2px;font-size:8px">✅</span></div>`)
       : `<div class="gasto-thumb-pdf" title="Archivo no sincronizado" style="border-color:var(--red)">📎<span style="position:absolute;bottom:2px;right:2px;font-size:8px;color:var(--red)">⚠️</span></div>`;
-    return `<div class="gasto-card">
+    return `<div class="gasto-card" style="${g.rechazado ? 'border-left:4px solid var(--red);background:#fff8f8' : ''}">
       ${thumb}
       <div class="gasto-info">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
@@ -4391,6 +4404,11 @@ function renderDietas() {
           <span class="gasto-importe">${g.importe.toFixed(2).replace('.',',')} €</span>
         </div>
         <div class="gasto-meta">📅 ${g.fecha} · 👷 ${g.trabajador} · 🏗️ ${g.obra}</div>
+        ${g.rechazado ? `<div style="margin-top:6px;padding:7px 10px;background:#fef2f2;border-radius:6px;border-left:3px solid var(--red)">
+          <div style="font-size:12px;font-weight:700;color:var(--red)">❌ Ticket rechazado por administración</div>
+          ${g.motivoRechazo ? `<div style="font-size:11px;color:var(--red);margin-top:2px">Motivo: ${g.motivoRechazo}</div>` : ''}
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Edita el ticket y sube una nueva foto para volver a enviarlo.</div>
+        </div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
         <button class="btn btn-ghost btn-xs" onclick="editarGasto(${g.id})">✏️</button>
@@ -6025,7 +6043,7 @@ function _buildVentanaPedidos() {
     .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;align-items:center;justify-content:center}
     .overlay.open{display:flex}
     .modal{background:#fff;border:1px solid #d0d5dd;border-radius:10px;padding:20px;max-width:580px;width:96%;max-height:90vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,.12)}
-    .modal h3{margin-bottom:14px}
+    .modal h3{margin-bottom:14px;color:#d97706;font-weight:800;font-size:14px}
     .fg{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px;margin-bottom:10px}
     .fg label{font-size:10px;text-transform:uppercase;letter-spacing:.2px;color:#6b7280;font-weight:700}
     .frow{display:flex;gap:10px;flex-wrap:wrap}
@@ -6183,7 +6201,6 @@ function renderTablaPedidos(data) {
   const tbody = document.getElementById('pedidosBody');
   if (!tbody) return;
   const today = new Date().toISOString().split('T')[0];
-  const estadoLabels = { sin_tramitar:'Sin tramitar', no_entregado:'No entregado', parcialmente:'Parcial', entregado:'Entregado' };
   tbody.innerHTML = data.map(p => {
     const vencida = p.fechaEntrega && p.fechaEntrega < today && p.estado !== 'entregado';
     const inc = _incidenciasData.find(i => i.pedidoId === p.id);
@@ -6191,7 +6208,7 @@ function renderTablaPedidos(data) {
       ? `<button class="inc-btn" style="background:${inc.estado==='finalizado'?'#f0fdf4':'#fffbeb'};color:${inc.estado==='finalizado'?'#15803d':'#b45309'};border:1px solid ${inc.estado==='finalizado'?'#86efac':'#fcd34d'}" onclick="abrirIncidenciaPed('${p.id}')">${inc.estado==='finalizado'?'✓ Fin':'⚠️ Ver'}</button>`
       : `<button class="inc-btn" style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5" onclick="nuevaIncidenciaPed('${p.id}')">+ Inc.</button>`;
     return `<tr class="est-${p.estado}">
-      <td style="font-weight:700">${p.nPedido||''}</td>
+      <td style="font-weight:700;white-space:nowrap">${p.nPedido||''}</td>
       <td>${p.proveedor||''}</td>
       <td>${p.obra||''}</td>
       <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(p.descripcion||'').replace(/"/g,'&quot;')}">${p.descripcion||''}</td>
@@ -6205,7 +6222,7 @@ function renderTablaPedidos(data) {
         entregado:     '<span class="dot dot-verde"></span>Entregado'
       }[p.estado] || p.estado}</td>
       <td>${incLabel}</td>
-      <td style="display:flex;gap:4px;align-items:center">
+      <td style="display:flex;gap:4px;align-items:center;white-space:nowrap">
         <button class="inc-btn" style="background:#fffbf0;color:#d97706;border:1px solid #fcd34d" onclick="editarPedido('${p.id}')">✏️</button>
         <button class="inc-btn" style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5" onclick="pedirConfirmBorrar('${p.id}')">🗑</button>
       </td>

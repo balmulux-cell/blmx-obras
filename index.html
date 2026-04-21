@@ -1629,7 +1629,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.3.8'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.9'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -5126,6 +5126,25 @@ function initVersion() {
   const vc = document.getElementById('versionCheck');
   if (vn) vn.textContent = APP_VERSION;
   if (vc) vc.style.display = 'inline';
+
+  // Invalidar sesiones de operario si la versión cambió
+  // Así al actualizar la app todos los operarios tendrán que volver a introducir contraseña
+  const lastVersion = localStorage.getItem('obra_last_version');
+  if (lastVersion !== APP_VERSION) {
+    // Borrar todas las WORKER_SESSION_KEY guardadas
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(WORKER_SESSION_KEY))
+      .forEach(k => localStorage.removeItem(k));
+    // También borrar la sesión de usuario activo si era operario
+    try {
+      const s = localStorage.getItem(USER_KEY);
+      if (s) {
+        const u = JSON.parse(s);
+        if (u && u.rol === 'operario') localStorage.removeItem(USER_KEY);
+      }
+    } catch(e) {}
+    localStorage.setItem('obra_last_version', APP_VERSION);
+  }
 }
 
 async function checkVersion() {

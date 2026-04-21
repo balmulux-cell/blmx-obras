@@ -1561,6 +1561,17 @@ async function init() {
     if (!Array.isArray(GASTOS_BLMX)) GASTOS_BLMX = Object.values(GASTOS_BLMX);
   } catch(e) {}
 
+  // Listener en tiempo real para gastos — detecta cuando operario corrige ticket rechazado
+  GASTOS_REF.on('value', snap => {
+    const val = snap.val();
+    GASTOS_BLMX = val ? (Array.isArray(val) ? val : Object.values(val)) : [];
+    // Si estamos en detalle de una remesa, recargar para reflejar correcciones
+    const screenDetalle = document.getElementById('screenDetalleRemesa');
+    if (screenDetalle && screenDetalle.classList.contains('active') && currentRemesaId) {
+      cargarDetalleRemesa();
+    }
+  });
+
   // Listener tiempo real en planif_admin
   DB_REF.on('value', snap => {
     const val = snap.val() || {};
@@ -2982,12 +2993,38 @@ async function cargarDetalleRemesa() {
         && !ticketsPrevIds.includes(String(g.id))
         && !estaEnRemesaCerrada(g.id, remesa.trabajador, id);
     });
+
+    // Sincronizar estado: si un ticket estaba rechazado pero el operario ya lo corrigió
+    // (rechazado:false en GASTOS_BLMX), volver a ponerlo como pendiente para poder validarlo
+    let hayCorregidos = false;
+    const arrSync = [...DATA.remesas];
+    const rSync = arrSync.find(x => x.id === id);
+    if (rSync && rSync.tickets) {
+      rSync.tickets.forEach(t => {
+        if (t.estado === 'rechazado') {
+          const gastoActual = GASTOS_BLMX.find(g => String(g.id) === String(t.gastoId));
+          if (gastoActual && !gastoActual.rechazado) {
+            // El operario corrigió el ticket — volver a pendiente y actualizar foto
+            t.estado = 'pendiente';
+            t.motivoRechazo = '';
+            t.driveLink = gastoActual.driveLink || t.driveLink;
+            t.isImage = gastoActual.isImage !== undefined ? gastoActual.isImage : t.isImage;
+            t.importe = gastoActual.importe || t.importe;
+            hayCorregidos = true;
+          }
+        }
+      });
+    }
+
     if (nuevos.length > 0) {
-      const arr = [...DATA.remesas];
+      const arr = hayCorregidos ? arrSync : [...DATA.remesas];
       const r = arr.find(x => x.id === id);
       if(!r.tickets)r.tickets=[];
       nuevos.forEach(g => r.tickets.push({ gastoId: g.id, fecha: g.fecha, desc: g.desc||'Ticket', importe: g.importe, driveLink: g.driveLink||null, isImage: g.isImage||false, estado: 'pendiente' }));
       await saveData('remesas', arr);
+      return; // el listener actualizará
+    } else if (hayCorregidos) {
+      await saveData('remesas', arrSync);
       return; // el listener actualizará
     }
   }

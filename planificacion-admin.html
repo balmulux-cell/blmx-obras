@@ -3098,20 +3098,28 @@ async function confirmarRechazar() {
   const r = arr.find(x => x.id === remesaId); if (!r) return;
   const t = r.tickets.find(x => String(x.gastoId) === String(gastoId)); if (!t) return;
   t.estado = 'rechazado'; t.motivoRechazo = motivo;
-  // Notificar en GASTOS_BLMX
-  const gastoIdx = GASTOS_BLMX.findIndex(g => String(g.id) === String(gastoId));
-  if (gastoIdx >= 0) {
-    GASTOS_BLMX[gastoIdx].rechazado = true;
-    GASTOS_BLMX[gastoIdx].motivoRechazo = motivo;
-    try {
-      await firebase.database().ref('obra_db/gastos/' + gastoIdx).update({
-        rechazado: true,
-        motivoRechazo: motivo,
-        pendienteRevision: true,
-        notificacionAt: new Date().toISOString()
-      });
-    } catch(e) {}
-  }
+  // Notificar en GASTOS_BLMX — buscar la clave real en Firebase por id
+  try {
+    const snapGastos = await firebase.database().ref('obra_db/gastos').once('value');
+    const gastosObj = snapGastos.val();
+    if (gastosObj) {
+      // Buscar la clave (puede ser índice numérico u otro) cuyo id coincide
+      const claveReal = Object.keys(gastosObj).find(k =>
+        String(gastosObj[k]?.id) === String(gastoId)
+      );
+      if (claveReal !== undefined) {
+        await firebase.database().ref('obra_db/gastos/' + claveReal).update({
+          rechazado: true,
+          motivoRechazo: motivo,
+          pendienteRevision: true,
+          notificacionAt: new Date().toISOString()
+        });
+        // Actualizar también el array local
+        const gastoLocal = GASTOS_BLMX.find(g => String(g.id) === String(gastoId));
+        if (gastoLocal) { gastoLocal.rechazado = true; gastoLocal.motivoRechazo = motivo; }
+      }
+    }
+  } catch(e) { console.warn('Error notificando rechazo:', e); }
   await saveData('remesas', arr);
   closeModal('modalRechazarTicket');
   await cargarDetalleRemesa();

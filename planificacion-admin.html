@@ -952,6 +952,7 @@ input::placeholder, textarea::placeholder { color: #9ca3af; font-style: italic; 
       <button class="btn btn-ghost btn-sm" id="btnExportRemesa" onclick="exportarRemesa()">📊 Excel</button>
       <button class="btn btn-primary btn-sm" id="btnCerrarRemesa" onclick="cerrarRemesa()">🔒 Cerrar remesa</button>
       <button class="btn btn-warn btn-sm" id="btnDeshacerRemesa" style="display:none" onclick="deshacerCierreRemesa()">↩ Reabrir</button>
+      <button class="btn btn-danger btn-sm" id="btnEliminarRemesa" onclick="eliminarRemesa()">🗑 Eliminar</button>
     </div>
   </div>
   <div class="main">
@@ -1250,7 +1251,20 @@ input::placeholder, textarea::placeholder { color: #9ca3af; font-style: italic; 
 </div>
 
 <!-- Modal: Rechazar ticket -->
-<div class="overlay" id="modalRechazarTicket">
+<!-- Modal confirmar eliminar remesa -->
+  <div class="overlay" id="modalEliminarRemesa">
+    <div class="modal" style="max-width:400px">
+      <h3 style="color:var(--red)">🗑 Eliminar remesa</h3>
+      <p style="margin:12px 0;font-size:14px;color:var(--text2)">¿Seguro que quieres eliminar esta remesa? Los tickets volverán a estar disponibles para crear una nueva remesa.</p>
+      <p style="font-size:12px;color:var(--red);margin-bottom:16px">Esta acción no se puede deshacer.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modalEliminarRemesa')">Cancelar</button>
+        <button class="btn btn-danger" onclick="confirmarEliminarRemesa()">🗑 Sí, eliminar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="modalRechazarTicket">
   <div class="modal">
     <h3 style="color:var(--red)">❌ Rechazar ticket</h3>
     <input type="hidden" id="rechazarTicketId">
@@ -2989,6 +3003,8 @@ async function cargarDetalleRemesa() {
     const hasPosterior = DATA.remesas.some(r => r.id !== id && r.trabajador === remesa.trabajador && r.creadaEl > remesa.creadaEl);
     btnDeshacer.style.display = remesa.cerrada && !hasPosterior ? '' : 'none';
   }
+  const btnElim = document.getElementById('btnEliminarRemesa');
+  if (btnElim) btnElim.style.display = remesa.cerrada ? 'none' : '';
 
   const total = calcTotalRemesa(remesa);
   const aprobados = (remesa.tickets||[]).filter(t => t.estado !== 'rechazado');
@@ -3025,7 +3041,7 @@ async function cargarDetalleRemesa() {
     const impFinal = t.importeCorregido !== undefined ? t.importeCorregido : t.importe;
     return `<div class="card ${t.estado==='rechazado'?'bl-r':t.estado==='validado'?'bl-g':t.estado==='modificado'?'bl-w':'bl-b'}">
       <div style="display:flex;gap:10px;align-items:flex-start">
-        ${t.driveLink ? `<img src="${t.driveLink}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer;flex-shrink:0" onclick="window.open('${t.driveLink}','_blank')" onerror="this.outerHTML='<div style=\\'width:56px;height:56px;border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0\\'>🧾</div>'">` : '<div style="width:56px;height:56px;border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🧾</div>'}
+        ${t.driveLink ? `<img src="${t.driveLink}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer;flex-shrink:0" onclick="abrirLightboxTicket('${t.driveLink}')" style="cursor:zoom-in" onerror="this.outerHTML='<div style=\\'width:56px;height:56px;border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0\\'>🧾</div>'">` : '<div style="width:56px;height:56px;border-radius:6px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">🧾</div>'}
         <div style="flex:1;min-width:0">
           <div style="font-weight:700;font-size:13px">${t.desc||'Ticket'}</div>
           <div style="font-size:11px;color:var(--text3);margin:2px 0">${fmt(t.fecha)}</div>
@@ -3055,6 +3071,8 @@ async function validarTicket(remesaId, gastoId) {
   const t = r.tickets.find(x => String(x.gastoId) === String(gastoId)); if (!t) return;
   t.estado = 'validado'; t.motivoRechazo = '';
   await saveData('remesas', arr);
+  await cargarDetalleRemesa();
+  toast('Ticket validado ✅','ok');
 }
 function abrirRechazarTicket(remesaId, gastoId, desc) {
   document.getElementById('rechazarTicketId').value = remesaId + '|' + gastoId;
@@ -3075,11 +3093,19 @@ async function confirmarRechazar() {
   if (gastoIdx >= 0) {
     GASTOS_BLMX[gastoIdx].rechazado = true;
     GASTOS_BLMX[gastoIdx].motivoRechazo = motivo;
-    try { await firebase.database().ref('obra_db/gastos/' + gastoIdx).update({ rechazado: true, motivoRechazo: motivo }); } catch(e) {}
+    try {
+      await firebase.database().ref('obra_db/gastos/' + gastoIdx).update({
+        rechazado: true,
+        motivoRechazo: motivo,
+        pendienteRevision: true,
+        notificacionAt: new Date().toISOString()
+      });
+    } catch(e) {}
   }
   await saveData('remesas', arr);
   closeModal('modalRechazarTicket');
-  toast('Ticket rechazado','ok');
+  await cargarDetalleRemesa();
+  toast('Ticket rechazado ❌','ok');
 }
 function abrirCorregirImporte(remesaId, gastoId, desc, importeActual) {
   document.getElementById('corregirTicketId').value = remesaId + '|' + gastoId;
@@ -3097,7 +3123,8 @@ async function confirmarCorregir() {
   t.importeCorregido = nuevoImporte; t.estado = 'modificado';
   await saveData('remesas', arr);
   closeModal('modalCorregirImporte');
-  toast('Importe corregido','ok');
+  await cargarDetalleRemesa();
+  toast('Importe corregido ✏️','ok');
 }
 async function cerrarRemesa() {
   if (!confirm('¿Cerrar esta remesa? Una vez cerrada no podrá modificarse (salvo que no haya remesa posterior).')) return;
@@ -3478,7 +3505,65 @@ document.querySelectorAll('.overlay').forEach(o => {
 // ARRANQUE
 // ════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', init);
+
+// ════════════════════════════════════════════
+// LIGHTBOX TICKET
+// ════════════════════════════════════════════
+function abrirLightboxTicket(url) {
+  if (!url) return;
+  const overlay = document.getElementById('lightboxTicket');
+  const img     = document.getElementById('lightboxTicketImg');
+  const iframe  = document.getElementById('lightboxTicketPdf');
+  if (!overlay || !img || !iframe) return;
+  // Detectar si es PDF
+  const esPdf = url.toLowerCase().includes('.pdf') || url.includes('application/pdf');
+  if (esPdf) {
+    img.style.display    = 'none';
+    iframe.style.display = 'block';
+    iframe.src = url;
+  } else {
+    iframe.style.display = 'none';
+    img.style.display    = 'block';
+    img.src = url;
+  }
+  overlay.classList.add('open');
+}
+function cerrarLightboxTicket() {
+  const overlay = document.getElementById('lightboxTicket');
+  const iframe  = document.getElementById('lightboxTicketPdf');
+  if (overlay) overlay.classList.remove('open');
+  if (iframe)  iframe.src = '';
+}
+
+// ════════════════════════════════════════════
+// ELIMINAR REMESA
+// ════════════════════════════════════════════
+function eliminarRemesa() {
+  const remesa = DATA.remesas.find(r => r.id === currentRemesaId);
+  if (!remesa) return;
+  if (remesa.cerrada) { toast('No se puede eliminar una remesa cerrada','err'); return; }
+  openModal('modalEliminarRemesa');
+}
+
+async function confirmarEliminarRemesa() {
+  const arr = DATA.remesas.filter(r => r.id !== currentRemesaId);
+  await saveData('remesas', arr);
+  closeModal('modalEliminarRemesa');
+  toast('Remesa eliminada','ok');
+  goScreen('screenDietas');
+}
+
 </script>
 
+
+  <!-- Lightbox ticket -->
+  <div class="overlay" id="lightboxTicket" onclick="cerrarLightboxTicket()" style="z-index:9999;background:rgba(0,0,0,.92);flex-direction:column;align-items:center;justify-content:center">
+    <button onclick="cerrarLightboxTicket()" style="position:absolute;top:14px;right:18px;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2">✕</button>
+    <img id="lightboxTicketImg" src="" alt="Ticket" onclick="event.stopPropagation()"
+         style="max-width:92vw;max-height:88vh;object-fit:contain;border-radius:8px;box-shadow:0 4px 32px rgba(0,0,0,.5);display:block">
+    <iframe id="lightboxTicketPdf" src="" onclick="event.stopPropagation()"
+            style="width:90vw;height:88vh;border:none;border-radius:8px;display:none"></iframe>
+    <p style="color:rgba(255,255,255,.5);font-size:12px;margin-top:10px">Haz clic fuera para cerrar</p>
+  </div>
 </body>
 </html>

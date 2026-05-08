@@ -793,6 +793,7 @@ tr:hover td{background:#fafafa!important}
           <table>
             <thead>
               <tr>
+                <th style="width:36px"></th>
                 <th>#</th><th>Descripción</th><th>Ud.</th>
                 <th style="text-align:right">Ejecutado</th>
                 <th style="text-align:right" class="admin-col">%</th>
@@ -1629,7 +1630,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.3.9'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.10'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2201,19 +2202,51 @@ function updateObraNavSubtitles() {
 // ════════════════════════════════════════════
 // MEDICIONES
 // ════════════════════════════════════════════
+
+// ════════════════════════════════════════════
+// MEDICIONES — FINALIZAR PARTIDA
+// ════════════════════════════════════════════
+async function finalizarPartida(id) {
+  const p = activeProject(); if (!p) return;
+  const part = (p.partidas||[]).find(x => x.id === id); if (!part) return;
+  part.finalizada = true;
+  part.ejecutadoFinal = part.ejecutado;
+  await saveDB();
+  renderMediciones();
+  toast('Partida finalizada ✅', 'ok');
+}
+
+async function desfinalizarPartida(id) {
+  const p = activeProject(); if (!p) return;
+  const part = (p.partidas||[]).find(x => x.id === id); if (!part) return;
+  part.finalizada = false;
+  await saveDB();
+  renderMediciones();
+  toast('Partida reabierta', 'ok');
+}
+
 function renderMediciones() {
   renderStats();
   const tbody = document.getElementById('tblBody');
   const p = activeProject();
   if (!p || (p.partidas||[]).length===0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty">Sin partidas. Importa un Excel o añade manualmente.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">Sin partidas. Importa un Excel o añade manualmente.</td></tr>';
     return;
   }
-  tbody.innerHTML = (p.partidas||[]).map((part,i) => {
+  // Separar: pendientes primero, finalizadas al final
+  const pendientes  = (p.partidas||[]).filter(x => !x.finalizada);
+  const finalizadas = (p.partidas||[]).filter(x =>  x.finalizada);
+  const ordenadas   = [...pendientes, ...finalizadas];
+
+  const renderFila = (part, i) => {
+    const isFinalizada = !!part.finalizada;
     const isExtra = part.previsto === 0;
     const pct = part.previsto > 0 ? (part.ejecutado/part.previsto*100) : 0;
     let cls='b-muted',label='Sin iniciar',fcls='pfill-ok',pctLabel='',barPct=0;
-    if (isExtra && part.ejecutado>0) {
+    if (isFinalizada) {
+      cls='b-ok'; label='✅ Finalizada'; fcls='pfill-ok'; barPct=100;
+      pctLabel=`<span style="font-family:'Inter',sans-serif;font-size:11px;font-weight:500;color:var(--green)">${isExtra?'Extra':pct.toFixed(1)+'%'}</span>`;
+    } else if (isExtra && part.ejecutado>0) {
       cls='b-extra'; label='🆕 Extra';
       pctLabel=`<span style="font-family:'Inter',sans-serif;font-size:11px;font-weight:500;color:var(--purple)">+${part.ejecutado}</span>`;
       barPct=100;
@@ -2226,20 +2259,36 @@ function renderMediciones() {
       if(pct>=80&&pct<=100){cls='b-w';label='Casi listo';fcls='pfill-w';}
       if(pct>100){cls='b-r';label='⚠ Superado';fcls='pfill-r';}
     }
-    return `<tr>
+    // Separador antes de la primera finalizada
+    const esPrimeroFinalizado = isFinalizada && i === pendientes.length;
+    const separador = esPrimeroFinalizado ?
+      `<tr><td colspan="9" style="padding:5px 10px;background:var(--s2);font-size:10px;text-transform:uppercase;letter-spacing:.2px;color:var(--text3);font-weight:700;border-top:2px solid var(--border)">✅ Partidas finalizadas — ${finalizadas.length}</td></tr>` : '';
+    return separador + `<tr style="${isFinalizada?'opacity:.6;background:var(--s2)':''}">
+      <td style="padding-left:6px;width:36px;text-align:center">
+        ${isFinalizada
+          ? `<button title="Reabrir partida" onclick="desfinalizarPartida(${part.id})" style="background:none;border:none;cursor:pointer;font-size:18px;line-height:1;padding:2px;color:var(--green)">✅</button>`
+          : `<button title="Marcar como finalizada" onclick="finalizarPartida(${part.id})" style="background:none;border:2px solid var(--border);border-radius:50%;width:24px;height:24px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:12px;color:var(--text3);transition:.15s" onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)';this.style.background='#f0fdf4'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text3)';this.style.background='none'">✓</button>`
+        }
+      </td>
       <td class="td-ud">${i+1}</td>
-      <td style="cursor:pointer" onclick="openQuickEntry(${part.id})">
-        <div class="td-desc" style="display:flex;align-items:center;gap:5px">${part.desc} <span style="font-size:10px;color:var(--accent);opacity:.7">＋</span></div>
+      <td style="cursor:pointer${isFinalizada?';text-decoration:line-through;color:var(--text3)':''}" onclick="${isFinalizada?'':'openQuickEntry('+part.id+')'}">
+        <div class="td-desc" style="display:flex;align-items:center;gap:5px">${part.desc}${!isFinalizada?` <span style="font-size:10px;color:var(--accent);opacity:.7">＋</span>`:''}</div>
         ${part.obs?`<div class="td-obs">${part.obs}</div>`:''}
       </td>
       <td class="td-ud">${part.ud}</td>
-      <td class="td-num"><input class="qty-input" type="number" value="${part.ejecutado}" min="0" step="0.01" onchange="updateEjecutado(${part.id},this.value)"></td>
-      <td class="admin-col" style="min-width:80px">${pctLabel}<div class="pbar"><div class="pfill ${isExtra?'':fcls}" style="width:${barPct}%;${isExtra?'background:var(--purple)':''}"></div></div></td>
+      <td class="td-num">
+        ${isFinalizada
+          ? `<span style="font-weight:700;color:var(--green)">${part.ejecutado}</span>`
+          : `<input class="qty-input" type="number" value="${part.ejecutado}" min="0" step="0.01" onchange="updateEjecutado(${part.id},this.value)">`
+        }
+      </td>
+      <td class="admin-col" style="min-width:80px">${pctLabel}<div class="pbar"><div class="pfill ${isExtra&&!isFinalizada?'':fcls}" style="width:${barPct}%;${isExtra&&!isFinalizada?'background:var(--purple)':''}"></div></div></td>
       <td class="admin-col"><span class="badge ${cls}">${label}</span></td>
       <td class="td-num admin-col" style="color:${isExtra?'var(--purple)':'var(--text3)'}">${isExtra?'—':part.previsto}</td>
       <td class="admin-col"><button class="btn btn-danger btn-xs" onclick="deletePartida(${part.id})">✕</button></td>
     </tr>`;
-  }).join('');
+  };
+  tbody.innerHTML = ordenadas.map((part, i) => renderFila(part, i)).join('');
 }
 
 function renderStats() {

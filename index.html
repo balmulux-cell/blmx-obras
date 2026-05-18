@@ -1651,7 +1651,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.3.14'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.15'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2269,49 +2269,77 @@ async function generarDossier() {
     const xlsxBuf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     zip.file(`Dossier_${safe}.xlsx`, xlsxBuf);
 
-    // ── Descargar fotos de R2 (igual que _descargarZip) ──
+    // ── Descargar fotos de R2 — usando claves de DB.fotos (igual que descargarZipDietas) ──
     try {
-      const fotosPath = 'FOTOS/' + sanitizeR2Name(p.name);
-      const listaFotos = await driveListFiles(fotosPath);
-      if (listaFotos.length > 0) {
+      const fotosObra = (DB.fotos && DB.fotos[DB.activeId]) ? DB.fotos[DB.activeId] : [];
+      const fotosConArchivo = fotosObra.filter(f => f.driveFileId);
+      if (fotosConArchivo.length > 0) {
         const fotoFolder = zip.folder('Fotos');
         let i = 0;
-        for (const f of listaFotos) {
+        for (const f of fotosConArchivo) {
           i++;
-          if (btnDossier) btnDossier.textContent = `⏳ Fotos ${i}/${listaFotos.length}...`;
+          if (btnDossier) btnDossier.textContent = `⏳ Fotos ${i}/${fotosConArchivo.length}...`;
           try {
             const r = await fetch(DRIVE_WORKER, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'X-Action': 'get-file' },
-              body: JSON.stringify({ key: f.id })
+              body: JSON.stringify({ key: f.driveFileId })
             });
-            if (r.ok) { const blob = await r.blob(); fotoFolder.file(f.name, blob); }
-          } catch(e) { console.warn('Error foto', f.name, e); }
+            if (r.ok) {
+              const blob = await r.blob();
+              const fileName = f.driveFileId.split('/').pop() || ('foto_' + i + '.jpg');
+              fotoFolder.file(fileName, blob);
+            }
+          } catch(e) { console.warn('Error foto', f.driveFileId, e); }
         }
       }
-    } catch(e) { console.warn('Error listando fotos:', e); }
+    } catch(e) { console.warn('Error descargando fotos:', e); }
 
-    // ── Descargar planos de R2 (igual que _descargarZip) ──
+    // ── Descargar planos de R2 — misma lógica que descargarZipCarpeta ──
+    // Las carpetas están en Firebase (planos_carpetas/{obraId}), archivos en R2
     try {
-      const planosPath = 'PLANOS/' + sanitizeR2Name(p.name);
-      const listaPlanos = await driveListFiles(planosPath);
-      if (listaPlanos.length > 0) {
-        const planoFolder = zip.folder('Planos');
-        let j = 0;
-        for (const f of listaPlanos) {
-          j++;
-          if (btnDossier) btnDossier.textContent = `⏳ Planos ${j}/${listaPlanos.length}...`;
+      const obraSafePlanos = sanitizeR2Name(p.name);
+      const planoFolder = zip.folder('Planos');
+      // 1. Leer carpetas desde Firebase
+      const carpetasSnap = await DB_REF.child('planos_carpetas/' + DB.activeId).once('value');
+      const carpetasVal = carpetasSnap.val();
+      const carpetas = carpetasVal
+        ? (Array.isArray(carpetasVal) ? carpetasVal : Object.values(carpetasVal)).map(c => c.nombre)
+        : [];
+      // 2. Descargar archivos de la raíz
+      const planosRaiz = await driveListFiles('PLANOS/' + obraSafePlanos);
+      let totalPlanos = 0;
+      for (const f of planosRaiz) {
+        totalPlanos++;
+        if (btnDossier) btnDossier.textContent = `⏳ Planos ${totalPlanos}...`;
+        try {
+          const r = await fetch(DRIVE_WORKER, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Action': 'get-file' },
+            body: JSON.stringify({ key: f.id })
+          });
+          if (r.ok) { const blob = await r.blob(); planoFolder.file(f.name, blob); }
+        } catch(e) { console.warn('Error plano raíz', f.name, e); }
+      }
+      // 3. Descargar archivos de cada subcarpeta
+      for (const carpetaNombre of carpetas) {
+        const subPath = 'PLANOS/' + obraSafePlanos + '/' + sanitizeR2Name(carpetaNombre);
+        const archivos = await driveListFiles(subPath);
+        const subFolder = planoFolder.folder(carpetaNombre);
+        for (const f of archivos) {
+          totalPlanos++;
+          if (btnDossier) btnDossier.textContent = `⏳ Planos ${totalPlanos}...`;
           try {
             const r = await fetch(DRIVE_WORKER, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'X-Action': 'get-file' },
               body: JSON.stringify({ key: f.id })
             });
-            if (r.ok) { const blob = await r.blob(); planoFolder.file(f.name, blob); }
-          } catch(e) { console.warn('Error plano', f.name, e); }
+            if (r.ok) { const blob = await r.blob(); subFolder.file(f.name, blob); }
+          } catch(e) { console.warn('Error plano carpeta', f.name, e); }
         }
       }
-    } catch(e) { console.warn('Error listando planos:', e); }
+    } catch(e) { console.warn('Error descargando planos:', e); }
 
     // ── Generar y descargar el ZIP ──
     showToast('Empaquetando ZIP...', 'ok');

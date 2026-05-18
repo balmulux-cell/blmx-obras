@@ -1651,7 +1651,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.3.12'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.13'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2162,8 +2162,8 @@ async function deleteProject() {
 async function generarDossier() {
   const p = activeProject();
   if (!p) return;
-  if (typeof JSZip === 'undefined') { toast('Librería JSZip no disponible', 'err'); return; }
-  if (typeof XLSX  === 'undefined') { toast('Librería XLSX no disponible', 'err'); return; }
+  if (typeof JSZip === 'undefined') { showToast('Librería JSZip no disponible', 'err'); return; }
+  if (typeof XLSX  === 'undefined') { showToast('Librería XLSX no disponible', 'err'); return; }
 
   const btnDossier = document.getElementById('btnGenerarDossier');
   if (btnDossier) { btnDossier.disabled = true; btnDossier.textContent = '⏳ Generando...'; }
@@ -2270,7 +2270,7 @@ async function generarDossier() {
     zip.file(`Dossier_${safe}.xlsx`, xlsxBuf);
 
     // ── Descargar fotos de R2 y añadir al ZIP ──
-    toast('Descargando fotos...', 'ok');
+    showToast('Descargando fotos...', 'ok');
     try {
       const fotosPath = 'FOTOS/' + sanitizeR2Name(p.name);
       const listaFotos = await driveListFiles(fotosPath);
@@ -2289,7 +2289,7 @@ async function generarDossier() {
     } catch(e) {}
 
     // ── Descargar planos de R2 y añadir al ZIP ──
-    toast('Descargando planos...', 'ok');
+    showToast('Descargando planos...', 'ok');
     try {
       const planosPath = 'PLANOS/' + sanitizeR2Name(p.name);
       const listaPlanos = await driveListFiles(planosPath);
@@ -2308,7 +2308,7 @@ async function generarDossier() {
     } catch(e) {}
 
     // ── Generar y descargar el ZIP ──
-    toast('Empaquetando ZIP...', 'ok');
+    showToast('Empaquetando ZIP...', 'ok');
     const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
@@ -2316,11 +2316,11 @@ async function generarDossier() {
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast('✅ Dossier descargado', 'ok');
+    showToast('✅ Dossier descargado', 'ok');
 
   } catch(e) {
     console.error('Error generando dossier:', e);
-    toast('Error al generar el dossier', 'err');
+    showToast('Error al generar el dossier', 'err');
   } finally {
     if (btnDossier) { btnDossier.disabled = false; btnDossier.textContent = '📁 Generar Dossier de Obra'; }
   }
@@ -2331,7 +2331,7 @@ async function generarDossier() {
 // ════════════════════════════════════════════
 function confirmarFinalizarObra() {
   const p = activeProject(); if (!p) return;
-  if (p.finalizada) { toast('Esta obra ya está finalizada', 'ok'); return; }
+  if (p.finalizada) { showToast('Esta obra ya está finalizada', 'ok'); return; }
   const msg = document.getElementById('modalFinalizarMsg');
   if (msg) msg.textContent = `¿Finalizar la obra "${p.name}"? Dejará de aparecer en el selector de obras activas.`;
   openModal('modalFinalizarObra');
@@ -2369,7 +2369,7 @@ async function ejecutarFinalizarObra() {
     await saveDB();
     renderProjectSelect();
     renderAll();
-    toast(`✅ Obra "${p.name}" finalizada`, 'ok');
+    showToast(`✅ Obra "${p.name}" finalizada`, 'ok');
 
     // Ir al home
     const obraScreen = document.getElementById('screenObra');
@@ -2379,7 +2379,7 @@ async function ejecutarFinalizarObra() {
 
   } catch(e) {
     console.error('Error finalizando obra:', e);
-    toast('Error al finalizar la obra', 'err');
+    showToast('Error al finalizar la obra', 'err');
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🏁 Finalizar obra'; }
   }
@@ -2394,7 +2394,7 @@ async function reabrirObra() {
   await saveDB();
   renderProjectSelect();
   renderAll();
-  toast(`Obra "${p.name}" reactivada`, 'ok');
+  showToast(`Obra "${p.name}" reactivada`, 'ok');
 }
 
 async function _doDeleteProject(p) {

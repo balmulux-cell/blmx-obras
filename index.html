@@ -1651,7 +1651,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.3.13'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.14'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2269,43 +2269,49 @@ async function generarDossier() {
     const xlsxBuf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     zip.file(`Dossier_${safe}.xlsx`, xlsxBuf);
 
-    // ── Descargar fotos de R2 y añadir al ZIP ──
-    showToast('Descargando fotos...', 'ok');
+    // ── Descargar fotos de R2 (igual que _descargarZip) ──
     try {
       const fotosPath = 'FOTOS/' + sanitizeR2Name(p.name);
       const listaFotos = await driveListFiles(fotosPath);
       if (listaFotos.length > 0) {
         const fotoFolder = zip.folder('Fotos');
-        for (const foto of listaFotos) {
+        let i = 0;
+        for (const f of listaFotos) {
+          i++;
+          if (btnDossier) btnDossier.textContent = `⏳ Fotos ${i}/${listaFotos.length}...`;
           try {
-            const resp = await fetch(`https://blmx-drive-worker.balmulux.workers.dev/get/${foto.id}`);
-            if (resp.ok) {
-              const buf = await resp.arrayBuffer();
-              fotoFolder.file(foto.id.split('/').pop() || foto.id, buf);
-            }
-          } catch(e) {}
+            const r = await fetch(DRIVE_WORKER, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Action': 'get-file' },
+              body: JSON.stringify({ key: f.id })
+            });
+            if (r.ok) { const blob = await r.blob(); fotoFolder.file(f.name, blob); }
+          } catch(e) { console.warn('Error foto', f.name, e); }
         }
       }
-    } catch(e) {}
+    } catch(e) { console.warn('Error listando fotos:', e); }
 
-    // ── Descargar planos de R2 y añadir al ZIP ──
-    showToast('Descargando planos...', 'ok');
+    // ── Descargar planos de R2 (igual que _descargarZip) ──
     try {
       const planosPath = 'PLANOS/' + sanitizeR2Name(p.name);
       const listaPlanos = await driveListFiles(planosPath);
       if (listaPlanos.length > 0) {
         const planoFolder = zip.folder('Planos');
-        for (const plano of listaPlanos) {
+        let j = 0;
+        for (const f of listaPlanos) {
+          j++;
+          if (btnDossier) btnDossier.textContent = `⏳ Planos ${j}/${listaPlanos.length}...`;
           try {
-            const resp = await fetch(`https://blmx-drive-worker.balmulux.workers.dev/get/${plano.id}`);
-            if (resp.ok) {
-              const buf = await resp.arrayBuffer();
-              planoFolder.file(plano.id.split('/').pop() || plano.id, buf);
-            }
-          } catch(e) {}
+            const r = await fetch(DRIVE_WORKER, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Action': 'get-file' },
+              body: JSON.stringify({ key: f.id })
+            });
+            if (r.ok) { const blob = await r.blob(); planoFolder.file(f.name, blob); }
+          } catch(e) { console.warn('Error plano', f.name, e); }
         }
       }
-    } catch(e) {}
+    } catch(e) { console.warn('Error listando planos:', e); }
 
     // ── Generar y descargar el ZIP ──
     showToast('Empaquetando ZIP...', 'ok');

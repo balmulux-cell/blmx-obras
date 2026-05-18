@@ -15,6 +15,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -2159,6 +2161,305 @@ async function deleteProject() {
 // ════════════════════════════════════════════
 // GENERAR DOSSIER DE OBRA
 // ════════════════════════════════════════════
+
+// ════════════════════════════════════════════
+// GENERAR PDF DOSSIER DE OBRA
+// ════════════════════════════════════════════
+async function generarPDFDossier(p) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const W = 210, H = 297;
+  const NARANJA = [217, 119, 6];
+  const AZUL    = [29, 78, 216];
+  const GRIS    = [107, 114, 128];
+  const NEGRO   = [17, 24, 39];
+  const BGRIS   = [240, 242, 245];
+  const f = p.ficha || {};
+  let y = 0;
+
+  // ── helpers ──
+  const setFont = (size, style='normal', color=NEGRO) => {
+    doc.setFontSize(size); doc.setFont('helvetica', style); doc.setTextColor(...color);
+  };
+  const line = (x1,y1,x2,y2,color=BGRIS,w=0.3) => {
+    doc.setDrawColor(...color); doc.setLineWidth(w); doc.line(x1,y1,x2,y2);
+  };
+  const rect = (x,ry,w,h,fill,draw) => {
+    if (fill) doc.setFillColor(...fill);
+    if (draw) doc.setDrawColor(...draw);
+    doc.rect(x,ry,w,h, fill&&draw?'FD': fill?'F': 'D');
+  };
+  const newPage = () => {
+    doc.addPage();
+    // Header franja
+    rect(0,0,W,12,NARANJA);
+    setFont(8,'bold',[255,255,255]);
+    doc.text('BALMULUX · BLMX OBRAS', 10, 8);
+    doc.text(p.name || '', W/2, 8, {align:'center'});
+    doc.text('Dossier de Obra', W-10, 8, {align:'right'});
+    // Footer
+    setFont(7,'normal',GRIS);
+    doc.text('Generado el ' + new Date().toLocaleDateString('es-ES'), 10, H-6);
+    doc.text('Pág. ' + doc.internal.getCurrentPageInfo().pageNumber, W-10, H-6, {align:'right'});
+    line(10, H-9, W-10, H-9);
+    y = 20;
+  };
+  const checkY = (needed=20) => { if (y + needed > H-18) newPage(); };
+  const sectionTitle = (title, icon='') => {
+    checkY(14);
+    rect(10, y, W-20, 9, AZUL);
+    setFont(10,'bold',[255,255,255]);
+    doc.text((icon+' '+title).trim(), 14, y+6.2);
+    y += 13;
+  };
+  const field = (label, value, x=10, w=190) => {
+    if (!value && value !== 0) return;
+    checkY(7);
+    setFont(8,'bold',GRIS); doc.text(label + ':', x, y);
+    setFont(8,'normal',NEGRO); doc.text(String(value), x+50, y);
+    y += 6;
+  };
+  const autoT = (head, body, opts={}) => {
+    if (!body || body.length===0) return;
+    checkY(20);
+    doc.autoTable({
+      startY: y,
+      head: [head],
+      body,
+      theme: 'grid',
+      headStyles: { fillColor: AZUL, textColor: [255,255,255], fontSize: 8, fontStyle:'bold', cellPadding:2 },
+      bodyStyles: { fontSize: 8, cellPadding:2, textColor: NEGRO },
+      alternateRowStyles: { fillColor: [250,251,252] },
+      margin: { left:10, right:10 },
+      tableWidth: W-20,
+      ...opts
+    });
+    y = doc.lastAutoTable.finalY + 6;
+  };
+
+  // ══════════════════════════════════════════
+  // PORTADA
+  // ══════════════════════════════════════════
+  rect(0,0,W,H,NARANJA); // fondo
+  rect(0,0,W,H,[255,255,255]); // blanco encima
+  rect(0,0,W,40,NARANJA); // franja top
+  rect(0,H-30,W,30,NARANJA); // franja bottom
+
+  setFont(22,'bold',[255,255,255]);
+  doc.text('DOSSIER DE OBRA', W/2, 22, {align:'center'});
+  setFont(11,'normal',[255,235,180]);
+  doc.text('BLMX OBRAS · BALMULUX', W/2, 32, {align:'center'});
+
+  // Caja central
+  rect(20,55,W-40,100,[249,250,251],[217,119,6]);
+  setFont(14,'bold',NARANJA);
+  doc.text(p.name || 'Sin nombre', W/2, 75, {align:'center', maxWidth:160});
+  line(30,82,W-30,82,NARANJA,0.5);
+
+  const fichaFields = [
+    ['Nombre obra', f.nombreObra], ['Constructora', f.constructora],
+    ['Propietario', f.propietario], ['Dirección', f.direccion],
+    ['F. Inicio', f.fechaInicio], ['F. Entrega', f.fechaEntrega || f.fechaFinPrevista],
+  ].filter(([,v]) => v);
+
+  setFont(9,'normal',NEGRO);
+  let py = 90;
+  fichaFields.forEach(([label, val]) => {
+    setFont(8,'bold',GRIS); doc.text(label+':', 30, py);
+    setFont(8,'normal',NEGRO); doc.text(String(val), 80, py);
+    py += 7;
+  });
+
+  setFont(9,'normal',GRIS);
+  doc.text('Generado: ' + new Date().toLocaleDateString('es-ES', {day:'2-digit',month:'long',year:'numeric'}), W/2, H-18, {align:'center'});
+
+  newPage();
+
+  // ══════════════════════════════════════════
+  // 1. FICHA DE OBRA
+  // ══════════════════════════════════════════
+  sectionTitle('FICHA DE OBRA', '📋');
+
+  const fichaData = [
+    ['Código obra', p.name||'—'], ['Nombre completo', f.nombreObra||'—'],
+    ['Constructora', f.constructora||'—'], ['Propietario / Promotor', f.propietario||'—'],
+    ['Dirección', f.direccion||'—'], ['Ubicación adicional', f.ubicacion||'—'],
+    ['F. Provisional obra', f.fechaProvisional||'—'], ['F. Inicio obra', f.fechaInicio||'—'],
+    ['F. Inspección OCA', f.fechaInspeccionOca||'—'], ['F. Entrega', f.fechaEntrega||f.fechaFinPrevista||'—'],
+    ['F. Apertura', f.fechaApertura||'—'], ['F. Acta recepción', f.fechaActaRecepcion||'—'],
+    ['Estado legalización', f.legal||'—'], ['F. Legalización', f.fechaLegal||'—'],
+    ['Comentarios', f.comentarios||'—'],
+  ];
+  autoT(['Campo','Valor'], fichaData, { columnStyles: {0:{cellWidth:70,fontStyle:'bold'}, 1:{cellWidth:110}} });
+
+  // ══════════════════════════════════════════
+  // 2. MEDICIONES — RESUMEN + TABLA COMPLETA
+  // ══════════════════════════════════════════
+  if ((p.partidas||[]).length > 0) {
+    sectionTitle('MEDICIONES', '📐');
+
+    const total_prev = p.partidas.reduce((s,x) => s + (Number(x.previsto)||0), 0);
+    const total_ejec = p.partidas.reduce((s,x) => s + (Number(x.ejecutado)||0), 0);
+    const pct_global = total_prev > 0 ? (total_ejec/total_prev*100).toFixed(1) : '—';
+    const pendientes = p.partidas.filter(x => !x.finalizada).length;
+    const finalizadas = p.partidas.filter(x => x.finalizada).length;
+
+    // Resumen
+    autoT(
+      ['Total partidas','Finalizadas','Pendientes','Ud. Previstas','Ud. Ejecutadas','% Global'],
+      [[p.partidas.length, finalizadas, pendientes,
+        total_prev.toFixed(2), total_ejec.toFixed(2), pct_global+'%']],
+      { headStyles:{fillColor:[15,118,110]}, bodyStyles:{fontStyle:'bold', fontSize:9} }
+    );
+
+    // Tabla completa
+    const medBody = p.partidas.map((part,i) => {
+      const pct = part.previsto>0 ? (part.ejecutado/part.previsto*100).toFixed(1)+'%' : '—';
+      const estado = part.finalizada ? '✓ Finalizada' :
+        part.previsto===0 ? 'Extra' : part.ejecutado===0 ? 'Sin iniciar' :
+        part.ejecutado/part.previsto >= 1 ? 'Completada' :
+        part.ejecutado/part.previsto >= 0.8 ? 'Casi listo' : 'En curso';
+      return [i+1, part.desc||'', part.ud||'',
+              (part.previsto||0).toFixed(2), (part.ejecutado||0).toFixed(2), pct, estado];
+    });
+    autoT(['#','Descripción','Ud.','Previsto','Ejecutado','%','Estado'], medBody, {
+      columnStyles: {
+        0:{cellWidth:8, halign:'center'}, 1:{cellWidth:70}, 2:{cellWidth:12, halign:'center'},
+        3:{cellWidth:22, halign:'right'}, 4:{cellWidth:22, halign:'right'},
+        5:{cellWidth:16, halign:'right'}, 6:{cellWidth:28, halign:'center'}
+      },
+      didParseCell: (data) => {
+        if (data.section==='body' && data.column.index===6) {
+          const v = data.cell.raw;
+          if (v==='✓ Finalizada') data.cell.styles.textColor = [21,128,61];
+          else if (v==='Sin iniciar') data.cell.styles.textColor = [107,114,128];
+          else if (v==='Completada') data.cell.styles.textColor = [21,128,61];
+          else if (v==='⚠ Superado') data.cell.styles.textColor = [220,38,38];
+          else data.cell.styles.textColor = [29,78,216];
+        }
+      }
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // 3. TAREAS
+  // ══════════════════════════════════════════
+  if ((p.tareas||[]).length > 0) {
+    sectionTitle('TAREAS', '✅');
+    const hechas = p.tareas.filter(t=>t.hecha).length;
+    autoT(['Total','Hechas','Pendientes'], [[p.tareas.length, hechas, p.tareas.length-hechas]],
+      {headStyles:{fillColor:[15,118,110]}, bodyStyles:{fontStyle:'bold',fontSize:9}});
+    const tarBody = p.tareas.map(t => [
+      t.hecha ? '✓' : '○', t.texto||'', t.prio||'', t.fecha||'', t.responsable||''
+    ]);
+    autoT(['','Tarea','Prioridad','Fecha','Responsable'], tarBody, {
+      columnStyles: { 0:{cellWidth:8,halign:'center'}, 1:{cellWidth:90}, 2:{cellWidth:22},
+                      3:{cellWidth:25}, 4:{cellWidth:33} }
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // 4. CONSULTAS
+  // ══════════════════════════════════════════
+  if ((p.consultas||[]).length > 0) {
+    sectionTitle('CONSULTAS', '💬');
+    const resp = p.consultas.filter(c=>c.respondida).length;
+    autoT(['Total','Respondidas','Pendientes'], [[p.consultas.length, resp, p.consultas.length-resp]],
+      {headStyles:{fillColor:[15,118,110]}, bodyStyles:{fontStyle:'bold',fontSize:9}});
+    const consBody = p.consultas.map(c => [
+      c.respondida?'✓':'○', c.texto||'', c.fecha||'', c.respuesta ? c.respuesta.substring(0,80)+(c.respuesta.length>80?'...':'') : '—'
+    ]);
+    autoT(['','Consulta','Fecha','Respuesta'], consBody, {
+      columnStyles: { 0:{cellWidth:8,halign:'center'}, 1:{cellWidth:60},
+                      2:{cellWidth:22}, 3:{cellWidth:88} }
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // 5. PEDIDOS
+  // ══════════════════════════════════════════
+  const pedidosObra = (DB.pedidosSeg||[]).filter(pd => pd.obra === p.name);
+  if (pedidosObra.length > 0) {
+    sectionTitle('PEDIDOS', '📦');
+    const entregados = pedidosObra.filter(pd=>pd.estado==='entregado').length;
+    const pendPed = pedidosObra.filter(pd=>pd.estado!=='entregado').length;
+    autoT(['Total','Entregados','Pendientes'], [[pedidosObra.length, entregados, pendPed]],
+      {headStyles:{fillColor:[15,118,110]}, bodyStyles:{fontStyle:'bold',fontSize:9}});
+    const pedBody = pedidosObra.map(pd => [
+      pd.nPedido||'', pd.proveedor||'', pd.descripcion ? pd.descripcion.substring(0,40)+(pd.descripcion.length>40?'...':'') : '',
+      pd.fechaPedido||'', pd.fechaEntrega||'', pd.lugarEntrega||'',
+      {sin_tramitar:'Sin tramitar',no_entregado:'No entregado',parcialmente:'Parcial',entregado:'Entregado'}[pd.estado]||pd.estado||''
+    ]);
+    autoT(['Nº Pedido','Proveedor','Descripción','F.Pedido','F.Entrega','Lugar','Estado'], pedBody, {
+      columnStyles: { 0:{cellWidth:22}, 1:{cellWidth:28}, 2:{cellWidth:50},
+                      3:{cellWidth:20}, 4:{cellWidth:20}, 5:{cellWidth:30}, 6:{cellWidth:18} }
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // 6. JORNADAS
+  // ══════════════════════════════════════════
+  const jornadasObra = (DB.jornadas||[]).filter(j => j.obraId===DB.activeId || j.obraNombre===p.name);
+  if (jornadasObra.length > 0) {
+    sectionTitle('REGISTRO DE JORNADAS', '👷');
+    const totalHoras = jornadasObra.reduce((s,j) => s+(Number(j.horas)||0), 0);
+    const totalSub = jornadasObra.reduce((s,j) => s+(Number(j.horasSub)||0), 0);
+    const totalViajes = jornadasObra.filter(j=>j.viaje).length;
+    autoT(['Total jornadas','Horas propias','Horas subcontrata','Viajes'],
+      [[jornadasObra.length, totalHoras.toFixed(1)+'h', totalSub.toFixed(1)+'h', totalViajes]],
+      {headStyles:{fillColor:[15,118,110]}, bodyStyles:{fontStyle:'bold',fontSize:9}});
+    const jorBody = jornadasObra
+      .sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''))
+      .map(j => [
+        j.fecha||'', j.trabajador||'',
+        j.tipo==='completa'?'Completa':j.tipo==='media'?'Media':'—',
+        (j.horas||0)+'h',
+        j.viaje?'Sí':'—',
+        j.subPersonas>0 ? j.subPersonas+' pers.' : '—',
+        j.horasSub>0 ? j.horasSub+'h' : '—',
+        j.notas ? j.notas.substring(0,40) : ''
+      ]);
+    autoT(['Fecha','Trabajador','Jornada','Horas','Viaje','Sub pers.','Sub horas','Notas'], jorBody, {
+      columnStyles: { 0:{cellWidth:22}, 1:{cellWidth:36}, 2:{cellWidth:18},
+                      3:{cellWidth:14,halign:'right'}, 4:{cellWidth:12,halign:'center'},
+                      5:{cellWidth:18,halign:'center'}, 6:{cellWidth:18,halign:'right'}, 7:{cellWidth:40} }
+    });
+  }
+
+  // ══════════════════════════════════════════
+  // 7. DIETAS Y GASTOS
+  // ══════════════════════════════════════════
+  const gastosObra = (DB.gastos||[]).filter(g => g.obra===p.name);
+  if (gastosObra.length > 0) {
+    sectionTitle('DIETAS Y GASTOS', '🍽️');
+    const totalGastos = gastosObra.reduce((s,g) => s+(Number(g.importe)||0), 0);
+    const tickets = gastosObra.filter(g=>g.tipo==='ticket');
+    const factPers = gastosObra.filter(g=>g.tipo==='personal');
+    const factEmp  = gastosObra.filter(g=>g.tipo==='empresa');
+    autoT(['Total gastos','Tickets','F.Personales','F.Empresa','Total importe'],
+      [[gastosObra.length, tickets.length, factPers.length, factEmp.length, totalGastos.toFixed(2)+' €']],
+      {headStyles:{fillColor:[15,118,110]}, bodyStyles:{fontStyle:'bold',fontSize:9}});
+    const gastBody = gastosObra
+      .sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''))
+      .map(g => [
+        g.fecha||'', g.trabajador||'',
+        {ticket:'Ticket',personal:'F.Personal',empresa:'F.Empresa'}[g.tipo]||g.tipo||'',
+        g.desc||g.obra||'', (Number(g.importe)||0).toFixed(2)+' €',
+        g.rechazado ? 'Rechazado' : 'OK'
+      ]);
+    autoT(['Fecha','Trabajador','Tipo','Descripción','Importe','Estado'], gastBody, {
+      columnStyles: { 0:{cellWidth:22}, 1:{cellWidth:36}, 2:{cellWidth:22},
+                      3:{cellWidth:60}, 4:{cellWidth:22,halign:'right'}, 5:{cellWidth:16,halign:'center'} },
+      didParseCell: (data) => {
+        if (data.section==='body' && data.column.index===5) {
+          data.cell.styles.textColor = data.cell.raw==='Rechazado' ? [220,38,38] : [21,128,61];
+        }
+      }
+    });
+  }
+
+  return doc;
+}
 async function generarDossier() {
   const p = activeProject();
   if (!p) return;
@@ -2268,6 +2569,16 @@ async function generarDossier() {
     // Añadir Excel al ZIP
     const xlsxBuf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
     zip.file(`Dossier_${safe}.xlsx`, xlsxBuf);
+
+    // ── Generar PDF dossier ──
+    if (btnDossier) btnDossier.textContent = '⏳ Generando PDF...';
+    try {
+      if (typeof window.jspdf !== 'undefined' && window.jspdf.jsPDF) {
+        const pdfDoc = await generarPDFDossier(p);
+        const pdfBytes = pdfDoc.output('arraybuffer');
+        zip.file(`Dossier_${safe}.pdf`, pdfBytes);
+      }
+    } catch(ePdf) { console.warn('Error generando PDF:', ePdf); }
 
     // ── Descargar fotos de R2 — usando claves de DB.fotos (igual que descargarZipDietas) ──
     try {

@@ -1135,14 +1135,21 @@ tr:hover td{background:#fafafa!important}
           </div>
         </div>
 
-        <!-- GENERAR DOSSIER -->
-        <div class="form-card" style="border-color:var(--accent);background:rgba(240,165,0,.04)">
-          <div class="stitle" style="margin-bottom:8px"><div class="stitle-bar"></div>📁 Generar Dossier</div>
-          <p style="color:var(--text2);font-size:13px;line-height:1.5;margin-bottom:12px">
-            Genera un dossier completo de la obra con toda la información: ficha, mediciones, consultas, pedidos y planos.
+        <!-- GENERAR DOSSIER + FINALIZAR OBRA -->
+        <div class="form-card" style="border-color:var(--accent);background:#fffbf0">
+          <div class="stitle" style="margin-bottom:8px"><div class="stitle-bar"></div>📁 Dossier y Cierre de Obra</div>
+          <p style="color:var(--text2);font-size:13px;line-height:1.5;margin-bottom:14px">
+            Genera un ZIP con toda la información de la obra: ficha, mediciones, consultas, tareas, pedidos, fotos y planos.
           </p>
-          <button class="btn btn-primary" style="width:100%;padding:12px" onclick="alert('🚧 Próximamente — en desarrollo')">
+          <button class="btn btn-primary" style="width:100%;padding:11px;margin-bottom:10px" id="btnGenerarDossier" onclick="generarDossier()">
             📁 Generar Dossier de Obra
+          </button>
+          <hr style="border:none;border-top:1px solid var(--border);margin:4px 0 12px">
+          <p style="color:var(--text3);font-size:12px;line-height:1.5;margin-bottom:10px">
+            Al <strong>Finalizar obra</strong> esta obra dejará de aparecer en el selector de obras activas y se moverá a <em>Obras Finalizadas</em>. Los datos de pedidos, jornadas, dietas y demás apartados se conservan. Las fotos y planos se borran del servidor para liberar espacio (descarga el dossier antes).
+          </p>
+          <button class="btn btn-ghost" style="width:100%;padding:11px;border-color:var(--border2)" id="btnFinalizarObra" onclick="confirmarFinalizarObra()">
+            🏁 Finalizar obra
           </button>
         </div>
 
@@ -1531,7 +1538,24 @@ tr:hover td{background:#fafafa!important}
   </div>
 </div>
 
-<!-- Modal confirmación borrar (genérico) -->
+<!-- Modal confirmar finalizar obra -->
+  <div class="overlay" id="modalFinalizarObra">
+    <div class="modal" style="max-width:440px">
+      <h3 style="color:var(--accent)">🏁 Finalizar obra</h3>
+      <p style="margin:12px 0 8px;font-size:14px;color:var(--text2)" id="modalFinalizarMsg"></p>
+      <div style="background:#fef3c7;border-radius:7px;padding:10px 12px;margin-bottom:14px;border-left:3px solid var(--warn)">
+        <p style="font-size:12px;color:var(--warn);font-weight:700;margin-bottom:4px">⚠️ Antes de continuar:</p>
+        <p style="font-size:12px;color:var(--text2)">Descarga el dossier de obra primero si quieres conservar las fotos y planos — se eliminarán del servidor al finalizar para liberar espacio.</p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modalFinalizarObra')">Cancelar</button>
+        <button class="btn btn-ghost" style="border-color:var(--accent);color:var(--accent)" onclick="closeModal('modalFinalizarObra');generarDossier()">📁 Descargar dossier primero</button>
+        <button class="btn btn-danger" onclick="ejecutarFinalizarObra()">🏁 Finalizar sin dossier</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal confirmación borrar (genérico) -->
 <div class="overlay" id="modalConfirmBorrar">
   <div class="modal">
     <h3 style="color:var(--red)">⚠️ Confirmar eliminación</h3>
@@ -1627,7 +1651,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.3.11'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.12'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -1947,6 +1971,29 @@ function applyAdminUI() {
     const el = document.getElementById(id);
     if(el) el.style.display = isAdmin ? '' : 'none';
   });
+  // Indicador obra finalizada en topbar
+  const p = activeProject();
+  let badge = document.getElementById('obraFinalizadaBadge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'obraFinalizadaBadge';
+    badge.style.cssText = 'background:#f0fdf4;color:#15803d;border:1px solid #86efac;border-radius:12px;padding:3px 9px;font-size:11px;font-weight:700;white-space:nowrap';
+    badge.textContent = '🏁 Finalizada';
+    const topbarTitle = document.querySelector('#screenObra .topbar-title');
+    if (topbarTitle) topbarTitle.after(badge);
+  }
+  badge.style.display = p?.finalizada ? '' : 'none';
+  // Ocultar botón finalizar si ya está finalizada
+  const btnFin = document.getElementById('btnFinalizarObra');
+  if (btnFin) {
+    if (p?.finalizada) {
+      btnFin.textContent = '↩ Reabrir obra';
+      btnFin.onclick = () => reabrirObra();
+    } else {
+      btnFin.textContent = '🏁 Finalizar obra';
+      btnFin.onclick = () => confirmarFinalizarObra();
+    }
+  }
   // Jornada export
   const expSec = document.getElementById('jornadaExportSection');
   if(expSec) expSec.style.display = isAdmin ? 'block' : 'none';
@@ -2033,10 +2080,25 @@ function activeProject() { return (DB.projects||{})[DB.activeId] || null; }
 
 function renderProjectSelect() {
   const sel = document.getElementById('projSelect');
-  const ids = Object.keys(DB.projects||{});
-  sel.innerHTML = ids.length === 0
-    ? '<option value="">— Sin obras —</option>'
-    : ids.map(id => `<option value="${id}" ${id===DB.activeId?'selected':''}>${DB.projects[id].name}</option>`).join('');
+  const all = DB.projects || {};
+  const activas     = Object.entries(all).filter(([,p]) => !p.finalizada);
+  const finalizadas = Object.entries(all).filter(([,p]) =>  p.finalizada);
+  if (activas.length === 0 && finalizadas.length === 0) {
+    sel.innerHTML = '<option value="">— Sin obras —</option>';
+    return;
+  }
+  let html = '';
+  if (activas.length > 0) {
+    if (finalizadas.length > 0) html += '<optgroup label="── Obras activas ──">';
+    html += activas.map(([id,p]) => `<option value="${id}" ${id===DB.activeId?'selected':''}>${p.name}</option>`).join('');
+    if (finalizadas.length > 0) html += '</optgroup>';
+  }
+  if (finalizadas.length > 0) {
+    html += '<optgroup label="── Obras finalizadas ──">';
+    html += finalizadas.map(([id,p]) => `<option value="${id}" ${id===DB.activeId?'selected':''}>${p.name}</option>`).join('');
+    html += '</optgroup>';
+  }
+  sel.innerHTML = html;
 }
 function switchProject() {
   DB.activeId = document.getElementById('projSelect').value;
@@ -2093,6 +2155,248 @@ async function deleteProject() {
     true
   );
 }
+
+// ════════════════════════════════════════════
+// GENERAR DOSSIER DE OBRA
+// ════════════════════════════════════════════
+async function generarDossier() {
+  const p = activeProject();
+  if (!p) return;
+  if (typeof JSZip === 'undefined') { toast('Librería JSZip no disponible', 'err'); return; }
+  if (typeof XLSX  === 'undefined') { toast('Librería XLSX no disponible', 'err'); return; }
+
+  const btnDossier = document.getElementById('btnGenerarDossier');
+  if (btnDossier) { btnDossier.disabled = true; btnDossier.textContent = '⏳ Generando...'; }
+
+  try {
+    const zip  = new JSZip();
+    const safe = (p.name||'OBRA').replace(/[^a-zA-Z0-9_\-]/g, '_');
+    const f    = p.ficha || {};
+
+    // ── Hoja Excel con toda la información ──
+    const wb = XLSX.utils.book_new();
+
+    // Hoja 1: Ficha
+    const fichaRows = [
+      ['FICHA DE OBRA', ''],
+      ['Código obra', p.name || ''],
+      ['Nombre', f.nombreObra || ''],
+      ['Constructora', f.constructora || ''],
+      ['Propietario', f.propietario || ''],
+      ['Dirección', f.direccion || ''],
+      ['Ubicación', f.ubicacion || ''],
+      ['Comentarios', f.comentarios || ''],
+      ['', ''],
+      ['FECHAS', ''],
+      ['F. Inicio', f.fechaInicio || ''],
+      ['F. Fin prevista', f.fechaFinPrevista || ''],
+      ['F. Fin real', f.fechaFinReal || ''],
+      ['F. Acta recepción', f.fechaActaRecepcion || ''],
+      ['', ''],
+      ['LEGALIZACIÓN', ''],
+      ['Estado legal', f.legal || ''],
+      ['F. Legalización', f.fechaLegal || ''],
+      ['', ''],
+      ['CUADRO ELÉCTRICO', ''],
+      ['Estado cuadro', f.cuadro || ''],
+      ['F. Cuadro', f.fechaCuadro || ''],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(fichaRows), 'Ficha');
+
+    // Hoja 2: Mediciones
+    if ((p.partidas||[]).length > 0) {
+      const medRows = [['#', 'Descripción', 'Ud.', 'Previsto', 'Ejecutado', '% Ejec.', 'Estado', 'Finalizada']];
+      p.partidas.forEach((part, i) => {
+        const pct = part.previsto > 0 ? (part.ejecutado/part.previsto*100).toFixed(1)+'%' : '—';
+        const estado = part.finalizada ? 'Finalizada' : part.previsto===0 ? 'Extra' :
+          part.ejecutado===0 ? 'Sin iniciar' : part.ejecutado/part.previsto >= 1 ? 'Completada' :
+          part.ejecutado/part.previsto >= 0.8 ? 'Casi listo' : 'En curso';
+        medRows.push([i+1, part.desc||'', part.ud||'', part.previsto||0, part.ejecutado||0, pct, estado, part.finalizada?'Sí':'No']);
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        p.partidas.map((part,i) => ({
+          '#': i+1, Descripción: part.desc||'', 'Ud.': part.ud||'',
+          Previsto: part.previsto||0, Ejecutado: part.ejecutado||0,
+          '% Ejec.': part.previsto>0 ? +(part.ejecutado/part.previsto*100).toFixed(1) : 0,
+          Estado: part.finalizada?'Finalizada': part.previsto===0?'Extra': part.ejecutado===0?'Sin iniciar':'En curso',
+          Finalizada: part.finalizada?'Sí':'No'
+        }))
+      ), 'Mediciones');
+    }
+
+    // Hoja 3: Tareas
+    if ((p.tareas||[]).length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        p.tareas.map(t => ({ Tarea: t.texto||'', Estado: t.hecha?'Hecha':'Pendiente', Fecha: t.fecha||'', Prioridad: t.prio||'' }))
+      ), 'Tareas');
+    }
+
+    // Hoja 4: Consultas
+    if ((p.consultas||[]).length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        p.consultas.map(c => ({
+          Consulta: c.texto||'', Estado: c.respondida?'Respondida':'Pendiente',
+          Fecha: c.fecha||'', Respuesta: c.respuesta||''
+        }))
+      ), 'Consultas');
+    }
+
+    // Hoja 5: Pedidos (de la obra)
+    const pedidosObra = (DB.pedidosSeg||[]).filter(p2 => p2.obra === p.name);
+    if (pedidosObra.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        pedidosObra.map(pd => ({
+          'Nº Pedido': pd.nPedido||'', Proveedor: pd.proveedor||'', Descripción: pd.descripcion||'',
+          'F.Pedido': pd.fechaPedido||'', 'F.Entrega': pd.fechaEntrega||'',
+          'Lugar Entrega': pd.lugarEntrega||'', Estado: pd.estado||''
+        }))
+      ), 'Pedidos');
+    }
+
+    // Hoja 6: Jornadas
+    const jornadasObra = (DB.jornadas||[]).filter(j => j.obraId === DB.activeId || j.obraNombre === p.name);
+    if (jornadasObra.length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        jornadasObra.map(j => ({
+          Trabajador: j.trabajador||'', Fecha: j.fecha||'', 'Tipo jornada': j.tipo||'',
+          Horas: j.horas||0, Viaje: j.viaje?'Sí':'No', 'Sub personas': j.subPersonas||0,
+          'Horas subcontrata': j.horasSub||0, Notas: j.notas||''
+        }))
+      ), 'Jornadas');
+    }
+
+    // Añadir Excel al ZIP
+    const xlsxBuf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    zip.file(`Dossier_${safe}.xlsx`, xlsxBuf);
+
+    // ── Descargar fotos de R2 y añadir al ZIP ──
+    toast('Descargando fotos...', 'ok');
+    try {
+      const fotosPath = 'FOTOS/' + sanitizeR2Name(p.name);
+      const listaFotos = await driveListFiles(fotosPath);
+      if (listaFotos.length > 0) {
+        const fotoFolder = zip.folder('Fotos');
+        for (const foto of listaFotos) {
+          try {
+            const resp = await fetch(`https://blmx-drive-worker.balmulux.workers.dev/get/${foto.id}`);
+            if (resp.ok) {
+              const buf = await resp.arrayBuffer();
+              fotoFolder.file(foto.id.split('/').pop() || foto.id, buf);
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {}
+
+    // ── Descargar planos de R2 y añadir al ZIP ──
+    toast('Descargando planos...', 'ok');
+    try {
+      const planosPath = 'PLANOS/' + sanitizeR2Name(p.name);
+      const listaPlanos = await driveListFiles(planosPath);
+      if (listaPlanos.length > 0) {
+        const planoFolder = zip.folder('Planos');
+        for (const plano of listaPlanos) {
+          try {
+            const resp = await fetch(`https://blmx-drive-worker.balmulux.workers.dev/get/${plano.id}`);
+            if (resp.ok) {
+              const buf = await resp.arrayBuffer();
+              planoFolder.file(plano.id.split('/').pop() || plano.id, buf);
+            }
+          } catch(e) {}
+        }
+      }
+    } catch(e) {}
+
+    // ── Generar y descargar el ZIP ──
+    toast('Empaquetando ZIP...', 'ok');
+    const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `Dossier_${safe}.zip`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast('✅ Dossier descargado', 'ok');
+
+  } catch(e) {
+    console.error('Error generando dossier:', e);
+    toast('Error al generar el dossier', 'err');
+  } finally {
+    if (btnDossier) { btnDossier.disabled = false; btnDossier.textContent = '📁 Generar Dossier de Obra'; }
+  }
+}
+
+// ════════════════════════════════════════════
+// FINALIZAR OBRA
+// ════════════════════════════════════════════
+function confirmarFinalizarObra() {
+  const p = activeProject(); if (!p) return;
+  if (p.finalizada) { toast('Esta obra ya está finalizada', 'ok'); return; }
+  const msg = document.getElementById('modalFinalizarMsg');
+  if (msg) msg.textContent = `¿Finalizar la obra "${p.name}"? Dejará de aparecer en el selector de obras activas.`;
+  openModal('modalFinalizarObra');
+}
+
+async function ejecutarFinalizarObra() {
+  const p = activeProject(); if (!p) return;
+  closeModal('modalFinalizarObra');
+
+  const btn = document.getElementById('btnFinalizarObra');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Finalizando...'; }
+
+  try {
+    const obraSafe = sanitizeR2Name(p.name);
+
+    // Borrar fotos de R2
+    try {
+      const fotos = await driveListFiles('FOTOS/' + obraSafe);
+      for (const f of fotos) { try { await driveDeleteFile(f.id); } catch(e) {} }
+    } catch(e) {}
+
+    // Borrar planos de R2
+    try {
+      const planos = await driveListFiles('PLANOS/' + obraSafe);
+      for (const pl of planos) { try { await driveDeleteFile(pl.id); } catch(e) {} }
+    } catch(e) {}
+
+    // Marcar como finalizada en Firebase (NO borrar)
+    p.finalizada = true;
+    p.fechaFinalizacion = new Date().toISOString().split('T')[0];
+    // Limpiar arrays pesados que ya no son necesarios
+    delete p.fotos; // thumbnails base64 en Firebase
+    if (DB.fotos && DB.fotos[DB.activeId]) delete DB.fotos[DB.activeId];
+
+    await saveDB();
+    renderProjectSelect();
+    renderAll();
+    toast(`✅ Obra "${p.name}" finalizada`, 'ok');
+
+    // Ir al home
+    const obraScreen = document.getElementById('screenObra');
+    if (obraScreen) { obraScreen.classList.remove('active'); }
+    const homeScreen = document.getElementById('screenHome');
+    if (homeScreen) { homeScreen.classList.add('active'); }
+
+  } catch(e) {
+    console.error('Error finalizando obra:', e);
+    toast('Error al finalizar la obra', 'err');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🏁 Finalizar obra'; }
+  }
+}
+
+
+async function reabrirObra() {
+  const p = activeProject(); if (!p) return;
+  if (!confirm(`¿Reabrir la obra "${p.name}" y moverla de vuelta a obras activas?`)) return;
+  p.finalizada = false;
+  delete p.fechaFinalizacion;
+  await saveDB();
+  renderProjectSelect();
+  renderAll();
+  toast(`Obra "${p.name}" reactivada`, 'ok');
+}
+
 async function _doDeleteProject(p) {
 
   const obraSafe = sanitizeR2Name(p.name);

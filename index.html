@@ -727,6 +727,12 @@ tr:hover td{background:#fafafa!important}
         <div class="mosaic-sub">PDF cliente</div>
       </button>
 
+      <button class="mosaic-btn" onclick="showObraPanel('nave')">
+        <span class="mosaic-icon">🏭</span>
+        <div class="mosaic-label">Material Nave</div>
+        <div class="mosaic-sub" id="obraNavNaveSub">Material a imputar</div>
+      </button>
+
       <button class="mosaic-btn" onclick="showObraPanel('ficha')">
         <span class="mosaic-icon">📋</span>
         <div class="mosaic-label">Ficha Obra</div>
@@ -1157,6 +1163,31 @@ tr:hover td{background:#fafafa!important}
 
       </div>
 
+      <!-- MATERIAL NAVE -->
+      <div class="panel-inner" id="inner-nave" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:10px;flex:1">
+            <div class="stitle" style="margin:0"><div class="stitle-bar"></div>🏭 Material de la Nave</div>
+            <button class="btn btn-primary btn-sm" onclick="addNaveRow()" style="border-radius:50%;width:32px;height:32px;padding:0;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0" title="Añadir material">+</button>
+          </div>
+          <button class="btn btn-green btn-sm" onclick="exportarNaveExcel()">📊 Excel</button>
+        </div>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Material cogido de la nave para imputar en Baseges. Marca ✓ cuando ya esté cargado en el programa.</p>
+        <div class="tbl-wrap">
+          <table id="naveTable" style="width:100%">
+            <thead><tr>
+              <th style="width:36px;text-align:center">✓</th>
+              <th>Material</th>
+              <th style="width:70px;text-align:center">Ud.</th>
+              <th style="width:90px;text-align:right">Cantidad</th>
+              <th style="width:60px;text-align:center"></th>
+            </tr></thead>
+            <tbody id="naveTbody"></tbody>
+          </table>
+        </div>
+        <div id="naveEmpty" class="empty" style="display:none">Sin material registrado. Pulsa + Añadir material para empezar.</div>
+      </div>
+
       <!-- PLANOS -->
       <div class="panel-inner" id="inner-planos" style="display:none">
         <!-- Barra superior -->
@@ -1557,6 +1588,32 @@ tr:hover td{background:#fafafa!important}
     </div>
   </div>
 
+  <!-- Modal editar material nave -->
+  <div class="overlay" id="modalNaveEdit">
+    <div class="modal" style="max-width:420px">
+      <h3>🏭 Material de la Nave</h3>
+      <input type="hidden" id="naveEditId">
+      <div class="fg" style="margin-bottom:10px">
+        <label>Material *</label>
+        <input type="text" id="naveEditMaterial" placeholder="Ej: Cable RZ1-K 3x2.5">
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label>Unidad</label>
+          <input type="text" id="naveEditUd" placeholder="m, ud, kg...">
+        </div>
+        <div class="fg">
+          <label>Cantidad</label>
+          <input type="number" id="naveEditCantidad" min="0" step="0.01" placeholder="0">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="closeModal('modalNaveEdit')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveNaveRow()">💾 Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal confirmación borrar (genérico) -->
 <div class="overlay" id="modalConfirmBorrar">
   <div class="modal">
@@ -1653,7 +1710,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.3.16'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.17'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2458,6 +2515,47 @@ async function generarPDFDossier(p) {
     });
   }
 
+
+  // ══════════════════════════════════════════
+  // 8. MATERIAL DE LA NAVE
+  // ══════════════════════════════════════════
+  const naveItems = p.nave || [];
+  if (naveItems.length > 0) {
+    sectionTitle('MATERIAL DE LA NAVE', '🏭');
+    const navePend = naveItems.filter(x=>!x.cargado).length;
+    const naveCarg = naveItems.filter(x=> x.cargado).length;
+    autoT(['Total líneas','Sin cargar en Baseges','Cargados en Baseges'],
+      [[naveItems.length, navePend, naveCarg]],
+      {headStyles:{fillColor:[15,118,110]}, bodyStyles:{fontStyle:'bold',fontSize:9}});
+    const naveOrdenado = [...naveItems.filter(x=>!x.cargado), ...naveItems.filter(x=>x.cargado)];
+    const naveBody = naveOrdenado.map(item => [
+      item.cargado ? '✓' : '○',
+      item.material || '',
+      item.ud || '—',
+      item.cantidad !== undefined ? item.cantidad : '—',
+      item.cargado ? 'Cargado' : 'Pendiente'
+    ]);
+    autoT(['','Material','Ud.','Cantidad','Estado'], naveBody, {
+      columnStyles: {
+        0:{cellWidth:8, halign:'center'},
+        1:{cellWidth:90},
+        2:{cellWidth:18, halign:'center'},
+        3:{cellWidth:22, halign:'right'},
+        4:{cellWidth:30, halign:'center'}
+      },
+      didParseCell: (data) => {
+        if (data.section==='body') {
+          if (data.column.index===0 && data.cell.raw==='✓') data.cell.styles.textColor=[21,128,61];
+          if (data.column.index===4) {
+            data.cell.styles.textColor = data.cell.raw==='Cargado' ? [21,128,61] : [29,78,216];
+            if (data.cell.raw==='Cargado') data.cell.styles.fontStyle='bold';
+          }
+          if (data.row.raw && data.row.raw[4]==='Cargado') data.cell.styles.textColor=[107,114,128];
+        }
+      }
+    });
+  }
+
   return doc;
 }
 async function generarDossier() {
@@ -2540,6 +2638,16 @@ async function generarDossier() {
           Fecha: c.fecha||'', Respuesta: c.respuesta||''
         }))
       ), 'Consultas');
+    }
+
+    // Hoja Material Nave
+    if ((p.nave||[]).length > 0) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+        [...(p.nave||[]).filter(x=>!x.cargado), ...(p.nave||[]).filter(x=>x.cargado)].map(item => ({
+          Material: item.material||'', 'Ud.': item.ud||'', Cantidad: item.cantidad||0,
+          'Cargado en Baseges': item.cargado ? 'Sí' : 'No'
+        }))
+      ), 'Material Nave');
     }
 
     // Hoja 5: Pedidos (de la obra)
@@ -2774,7 +2882,8 @@ async function _doDeleteProject(p) {
 // ════════════════════════════════════════════
 const PANEL_TITLES = {
   mediciones:'📐 Mediciones', historial:'🗂 Historial', tareas:'✅ Tareas',
-  consultas:'💬 Consultas', pedidos:'📦 Pedidos', ppto:'📄 Presupuesto',
+  consultas:'💬 Consultas', pedidos:'📦 Pedidos', nave:'🏭 Material de la Nave',
+  ppto:'📄 Presupuesto',
   ficha:'📋 Ficha de Obra', planos:'🗺️ Planos', fotos:'📷 Fotos de Obra',
   ia:'🤖 Análisis IA', importar:'📥 Importar Excel', admin:'⚙️ Administración',
   acopio:'📦 Acopio de Materiales', avance:'📊 Avance de Ejecución'
@@ -2793,6 +2902,7 @@ function showObraPanel(name) {
   if (inner) inner.style.display = 'block';
   // Special triggers
   if (name === 'ppto') renderPpto();
+  if (name === 'nave') renderNave();
   if (name === 'admin') renderTrabajadores();
   if (name === 'pedidos') populatePedidoOperario();
   if (name === 'ficha') renderFichaPanel();
@@ -2823,6 +2933,7 @@ function renderAll() {
   renderConsultas();
   renderPedidos();
   renderPpto();
+  renderNave();
   refreshLineaSelects();
   applyAdminUI();
   updateHomeBadges();
@@ -2830,6 +2941,142 @@ function renderAll() {
   // Update ficha subtitle if panel is open
   const fichaInner = document.getElementById('inner-ficha');
   if (fichaInner && fichaInner.style.display !== 'none') renderFichaPanel();
+}
+
+
+// ════════════════════════════════════════════
+// MATERIAL DE LA NAVE
+// ════════════════════════════════════════════
+
+function renderNave() {
+  const p = activeProject(); 
+  const tbody = document.getElementById('naveTbody');
+  const empty = document.getElementById('naveEmpty');
+  if (!p || !tbody) return;
+
+  const items = p.nave || [];
+  // Pendientes arriba, cargados (checked) abajo
+  const pendientes = items.filter(x => !x.cargado);
+  const cargados   = items.filter(x =>  x.cargado);
+  const ordenados  = [...pendientes, ...cargados];
+
+  if (ordenados.length === 0) {
+    tbody.innerHTML = '';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  let separadorPuesto = false;
+  tbody.innerHTML = ordenados.map((item, i) => {
+    const esPrimerCargado = item.cargado && i === pendientes.length && !separadorPuesto;
+    if (esPrimerCargado) separadorPuesto = true;
+    const sep = esPrimerCargado && cargados.length > 0
+      ? `<tr><td colspan="5" style="padding:4px 10px;background:var(--s2);font-size:10px;text-transform:uppercase;letter-spacing:.2px;color:var(--text3);font-weight:700;border-top:2px solid var(--border)">✓ Cargados en Baseges (${cargados.length})</td></tr>`
+      : '';
+    return sep + `<tr style="${item.cargado ? 'opacity:.55;background:var(--s2)' : ''}">
+      <td style="text-align:center">
+        <input type="checkbox" ${item.cargado ? 'checked' : ''}
+          onchange="toggleNaveCheck('${item.id}', this.checked)"
+          style="width:18px;height:18px;accent-color:var(--green);cursor:pointer">
+      </td>
+      <td style="${item.cargado ? 'text-decoration:line-through;color:var(--text3)' : 'font-weight:600'}">${item.material || '—'}</td>
+      <td style="text-align:center;color:var(--text3)">${item.ud || '—'}</td>
+      <td style="text-align:right;font-weight:600">${item.cantidad !== undefined ? item.cantidad : '—'}</td>
+      <td style="text-align:center;white-space:nowrap">
+        <button class="btn btn-ghost btn-xs" style="padding:3px 7px;margin-right:3px" onclick="editNaveRow('${item.id}')">✏️</button>
+        <button class="btn btn-danger btn-xs" style="padding:3px 7px" onclick="deleteNaveRow('${item.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // Actualizar subtítulo mosaico
+  const sub = document.getElementById('obraNavNaveSub');
+  if (sub) sub.textContent = pendientes.length > 0 ? `${pendientes.length} sin cargar` : (items.length > 0 ? 'Todo cargado ✓' : 'Material a imputar');
+}
+
+function addNaveRow() {
+  document.getElementById('naveEditId').value = '';
+  document.getElementById('naveEditMaterial').value = '';
+  document.getElementById('naveEditUd').value = '';
+  document.getElementById('naveEditCantidad').value = '';
+  openModal('modalNaveEdit');
+  setTimeout(() => document.getElementById('naveEditMaterial').focus(), 100);
+}
+
+function editNaveRow(id) {
+  const p = activeProject(); if (!p) return;
+  const item = (p.nave || []).find(x => x.id === id); if (!item) return;
+  document.getElementById('naveEditId').value = id;
+  document.getElementById('naveEditMaterial').value = item.material || '';
+  document.getElementById('naveEditUd').value = item.ud || '';
+  document.getElementById('naveEditCantidad').value = item.cantidad !== undefined ? item.cantidad : '';
+  openModal('modalNaveEdit');
+  setTimeout(() => document.getElementById('naveEditMaterial').focus(), 100);
+}
+
+async function saveNaveRow() {
+  const btn = document.querySelector('#modalNaveEdit .btn-primary');
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando...'; }
+  try {
+    const p = activeProject(); if (!p) return;
+    const material = document.getElementById('naveEditMaterial').value.trim();
+    if (!material) { alert('Introduce el nombre del material'); return; }
+    const ud       = document.getElementById('naveEditUd').value.trim();
+    const cantidad = parseFloat(document.getElementById('naveEditCantidad').value) || 0;
+    const id       = document.getElementById('naveEditId').value;
+
+    if (!p.nave) p.nave = [];
+    if (id) {
+      const item = p.nave.find(x => x.id === id);
+      if (item) { item.material = material; item.ud = ud; item.cantidad = cantidad; }
+    } else {
+      p.nave.push({ id: 'nave_' + Date.now(), material, ud, cantidad, cargado: false });
+    }
+    await saveDB();
+    closeModal('modalNaveEdit');
+    renderNave();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar'; }
+  }
+}
+
+async function toggleNaveCheck(id, checked) {
+  const p = activeProject(); if (!p) return;
+  const item = (p.nave || []).find(x => x.id === id); if (!item) return;
+  item.cargado = checked;
+  await saveDB();
+  renderNave();
+}
+
+async function deleteNaveRow(id) {
+  const p = activeProject(); if (!p) return;
+  if (!confirm('¿Eliminar esta línea de material?')) return;
+  p.nave = (p.nave || []).filter(x => x.id !== id);
+  await saveDB();
+  renderNave();
+}
+
+function exportarNaveExcel() {
+  const p = activeProject(); if (!p) return;
+  if (typeof XLSX === 'undefined') { showToast('XLSX no disponible', 'err'); return; }
+  const items = p.nave || [];
+  if (items.length === 0) { showToast('Sin material registrado', 'err'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const rows = items.map(item => ({
+    'MATERIAL':   item.material || '',
+    'UNIDAD':     item.ud || '',
+    'CANTIDAD':   item.cantidad || 0,
+    'CARGADO EN BASEGES': item.cargado ? 'Sí' : 'No'
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:40},{wch:12},{wch:12},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Material Nave');
+  const safe = (p.name || 'OBRA').replace(/[^a-zA-Z0-9_\-]/g, '_');
+  XLSX.writeFile(wb, `MaterialNave_${safe}.xlsx`);
+  showToast('Excel exportado ✅', 'ok');
 }
 
 function updateObraNavSubtitles() {
@@ -2843,6 +3090,10 @@ function updateObraNavSubtitles() {
   if(ts) ts.textContent = tareas > 0 ? `${tareas} pendiente(s)` : 'Sin pendientes';
   if(cs) cs.textContent = consultas > 0 ? `${consultas} sin responder` : 'Al día';
   if(ps) ps.textContent = pedidos > 0 ? `${pedidos} activo(s)` : 'Sin pedidos activos';
+  const nave = (p.nave||[]);
+  const navePend = nave.filter(x=>!x.cargado).length;
+  const ns = document.getElementById('obraNavNaveSub');
+  if(ns) ns.textContent = navePend > 0 ? `${navePend} sin cargar` : (nave.length > 0 ? 'Todo cargado ✓' : 'Material a imputar');
 }
 
 // ════════════════════════════════════════════

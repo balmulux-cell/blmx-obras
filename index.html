@@ -2948,7 +2948,6 @@ function renderAll() {
 // MATERIAL DE LA NAVE
 // ════════════════════════════════════════════
 
-
 function renderNave() {
   const p = activeProject(); 
   const tbody = document.getElementById('naveTbody');
@@ -3016,40 +3015,47 @@ function editNaveRow(id) {
   setTimeout(() => document.getElementById('naveEditMaterial').focus(), 100);
 }
 
-function saveNaveRow() {
-  const material = document.getElementById('naveEditMaterial').value.trim();
-  if (!material) { alert('Introduce el nombre del material'); return; }
-  const p = activeProject(); if (!p) return;
-  const ud       = document.getElementById('naveEditUd').value.trim();
-  const cantidad = parseFloat(document.getElementById('naveEditCantidad').value) || 0;
-  const id       = document.getElementById('naveEditId').value;
+async function saveNaveRow() {
+  const btn = document.querySelector('#modalNaveEdit .btn-primary');
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando...'; }
+  try {
+    const p = activeProject(); if (!p) return;
+    const material = document.getElementById('naveEditMaterial').value.trim();
+    if (!material) { alert('Introduce el nombre del material'); return; }
+    const ud       = document.getElementById('naveEditUd').value.trim();
+    const cantidad = parseFloat(document.getElementById('naveEditCantidad').value) || 0;
+    const id       = document.getElementById('naveEditId').value;
 
-  if (!p.nave) p.nave = [];
-  if (id) {
-    const item = p.nave.find(x => x.id === id);
-    if (item) { item.material = material; item.ud = ud; item.cantidad = cantidad; }
-  } else {
-    p.nave.push({ id: 'nave_' + Date.now(), material, ud, cantidad, cargado: false });
+    if (!p.nave) p.nave = [];
+    if (id) {
+      const item = p.nave.find(x => x.id === id);
+      if (item) { item.material = material; item.ud = ud; item.cantidad = cantidad; }
+    } else {
+      p.nave.push({ id: 'nave_' + Date.now(), material, ud, cantidad, cargado: false });
+    }
+    await saveDB();
+    closeModal('modalNaveEdit');
+    renderNave();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar'; }
   }
-  saveDB();
-  closeModal('modalNaveEdit');
-  renderNave();
 }
 
-function toggleNaveCheck(id, checked) {
+async function toggleNaveCheck(id, checked) {
   const p = activeProject(); if (!p) return;
   const item = (p.nave || []).find(x => x.id === id); if (!item) return;
   item.cargado = checked;
+  await saveDB();
   renderNave();
-  saveDB();
 }
 
 async function deleteNaveRow(id) {
   const p = activeProject(); if (!p) return;
   if (!confirm('¿Eliminar esta línea de material?')) return;
   p.nave = (p.nave || []).filter(x => x.id !== id);
+  await saveDB();
   renderNave();
-  saveDB();
 }
 
 function exportarNaveExcel() {

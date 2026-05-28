@@ -1710,7 +1710,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.3.20'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.21'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2406,12 +2406,51 @@ async function generarPDFDossier(p) {
     const hechas = p.tareas.filter(t=>t.hecha).length;
     autoT(['Total','Hechas','Pendientes'], [[p.tareas.length, hechas, p.tareas.length-hechas]],
       {headStyles:{fillColor:[15,118,110]}, bodyStyles:{fontStyle:'bold',fontSize:9}});
-    const tarBody = p.tareas.map(t => [
-      t.hecha ? '✓' : '○', t.texto||'', t.prio||'', t.fecha||'', t.responsable||''
-    ]);
-    autoT(['','Tarea','Prioridad','Fecha','Responsable'], tarBody, {
-      columnStyles: { 0:{cellWidth:8,halign:'center'}, 1:{cellWidth:90}, 2:{cellWidth:22},
-                      3:{cellWidth:25}, 4:{cellWidth:33} }
+
+    // Pendientes primero, luego hechas
+    const tareasOrden = [
+      ...p.tareas.filter(t=>!t.hecha),
+      ...p.tareas.filter(t=> t.hecha)
+    ];
+    const tarBody = tareasOrden.map(t => {
+      const prioLabel = t.prio==='alta' ? '🔴 Alta' : t.prio==='baja' ? 'Baja' : 'Normal';
+      const checklistStr = (t.checklist||[]).length > 0
+        ? (t.checklist||[]).map(c => (c.hecho?'✓ ':'○ ') + (c.texto||'')).join('
+')
+        : '';
+      return [
+        t.hecha ? '✓' : '○',
+        (t.texto||'') + (t.desc ? '
+' + t.desc : ''),
+        prioLabel,
+        t.fecha||'',
+        t.responsable||'',
+        checklistStr
+      ];
+    });
+    autoT(['','Tarea / Descripción','Prioridad','Fecha','Responsable','Checklist'], tarBody, {
+      columnStyles: {
+        0:{cellWidth:8, halign:'center'},
+        1:{cellWidth:60},
+        2:{cellWidth:18, halign:'center'},
+        3:{cellWidth:20, halign:'center'},
+        4:{cellWidth:28},
+        5:{cellWidth:44, fontSize:7}
+      },
+      didParseCell: (data) => {
+        if (data.section==='body') {
+          if (data.column.index===0 && data.cell.raw==='✓') {
+            data.cell.styles.textColor=[21,128,61]; data.cell.styles.fontStyle='bold';
+          }
+          if (data.column.index===2 && (data.cell.raw||'').includes('Alta')) {
+            data.cell.styles.textColor=[220,38,38]; data.cell.styles.fontStyle='bold';
+          }
+          // Fila hecha → texto gris tachado simulado
+          if (data.row.raw && data.row.raw[0]==='✓') {
+            data.cell.styles.textColor=[150,150,150];
+          }
+        }
+      }
     });
   }
 
@@ -2626,7 +2665,15 @@ async function generarDossier() {
     // Hoja 3: Tareas
     if ((p.tareas||[]).length > 0) {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
-        p.tareas.map(t => ({ Tarea: t.texto||'', Estado: t.hecha?'Hecha':'Pendiente', Fecha: t.fecha||'', Prioridad: t.prio||'' }))
+        p.tareas.map(t => ({
+          'Estado': t.hecha ? '✓ Hecha' : '○ Pendiente',
+          'Tarea': t.texto || '',
+          'Descripción': t.desc || '',
+          'Prioridad': t.prio === 'alta' ? '🔴 Alta' : t.prio === 'baja' ? 'Baja' : 'Normal',
+          'Fecha': t.fecha || '',
+          'Responsable': t.responsable || '',
+          'Checklist': (t.checklist||[]).map(c => (c.hecho?'✓ ':'○ ') + (c.texto||'')).join(' | ') || ''
+        }))
       ), 'Tareas');
     }
 
@@ -2948,6 +2995,7 @@ function renderAll() {
 // MATERIAL DE LA NAVE
 // ════════════════════════════════════════════
 
+
 function renderNave() {
   const p = activeProject(); 
   const tbody = document.getElementById('naveTbody');
@@ -3015,47 +3063,40 @@ function editNaveRow(id) {
   setTimeout(() => document.getElementById('naveEditMaterial').focus(), 100);
 }
 
-async function saveNaveRow() {
-  const btn = document.querySelector('#modalNaveEdit .btn-primary');
-  if (btn && btn.disabled) return;
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Guardando...'; }
-  try {
-    const p = activeProject(); if (!p) return;
-    const material = document.getElementById('naveEditMaterial').value.trim();
-    if (!material) { alert('Introduce el nombre del material'); return; }
-    const ud       = document.getElementById('naveEditUd').value.trim();
-    const cantidad = parseFloat(document.getElementById('naveEditCantidad').value) || 0;
-    const id       = document.getElementById('naveEditId').value;
+function saveNaveRow() {
+  const material = document.getElementById('naveEditMaterial').value.trim();
+  if (!material) { alert('Introduce el nombre del material'); return; }
+  const p = activeProject(); if (!p) return;
+  const ud       = document.getElementById('naveEditUd').value.trim();
+  const cantidad = parseFloat(document.getElementById('naveEditCantidad').value) || 0;
+  const id       = document.getElementById('naveEditId').value;
 
-    if (!p.nave) p.nave = [];
-    if (id) {
-      const item = p.nave.find(x => x.id === id);
-      if (item) { item.material = material; item.ud = ud; item.cantidad = cantidad; }
-    } else {
-      p.nave.push({ id: 'nave_' + Date.now(), material, ud, cantidad, cargado: false });
-    }
-    await saveDB();
-    closeModal('modalNaveEdit');
-    renderNave();
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar'; }
+  if (!p.nave) p.nave = [];
+  if (id) {
+    const item = p.nave.find(x => x.id === id);
+    if (item) { item.material = material; item.ud = ud; item.cantidad = cantidad; }
+  } else {
+    p.nave.push({ id: 'nave_' + Date.now(), material, ud, cantidad, cargado: false });
   }
+  saveDB();
+  closeModal('modalNaveEdit');
+  renderNave();
 }
 
-async function toggleNaveCheck(id, checked) {
+function toggleNaveCheck(id, checked) {
   const p = activeProject(); if (!p) return;
   const item = (p.nave || []).find(x => x.id === id); if (!item) return;
   item.cargado = checked;
-  await saveDB();
   renderNave();
+  saveDB();
 }
 
 async function deleteNaveRow(id) {
   const p = activeProject(); if (!p) return;
   if (!confirm('¿Eliminar esta línea de material?')) return;
   p.nave = (p.nave || []).filter(x => x.id !== id);
-  await saveDB();
   renderNave();
+  saveDB();
 }
 
 function exportarNaveExcel() {

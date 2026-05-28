@@ -362,56 +362,148 @@ input:checked+.tgl-s:before{transform:translateX(16px);}
 
 
 /* ── VISTA MÓVIL ── */
-body.movil-mode .app { flex-direction: column; }
+body.movil-mode { overflow: hidden; }
+body.movil-mode .app { flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* Sidebar → nav horizontal compacta */
 body.movil-mode .sidebar {
   width: 100% !important; min-width: unset;
-  height: auto; min-height: unset;
+  height: auto !important; min-height: unset; flex-shrink: 0;
   border-right: none; border-bottom: 1px solid var(--border);
-  flex-direction: row; flex-wrap: wrap; overflow: visible;
-  padding: 6px 10px; gap: 4px;
+  flex-direction: column; overflow: visible;
+  padding: 6px 10px 4px; gap: 4px;
 }
 body.movil-mode .sidebar-logo { display: none; }
-body.movil-mode .sidebar .ssec { display: flex; flex-direction: row; flex-wrap: wrap; gap: 2px; padding: 0; }
+body.movil-mode .sidebar .sfooter {
+  order: 0; padding: 0; margin: 0;
+}
+body.movil-mode .sidebar .sfooter .upill {
+  padding: 4px 8px; background: none; border: none;
+  font-size: 11px;
+}
+body.movil-mode .sidebar .ssec {
+  order: 1;
+  display: flex; flex-direction: row; flex-wrap: wrap;
+  gap: 4px; padding: 0;
+}
 body.movil-mode .sidebar .slabel { display: none; }
-body.movil-mode .sidebar .ni {
-  padding: 6px 10px; border-radius: 16px; font-size: 11px;
-  display: flex; align-items: center; gap: 5px;
-  background: var(--surface2); border: 1px solid var(--border);
-}
-body.movil-mode .sidebar .ni.active { background: rgba(245,166,35,.15); border-color: var(--accent); color: var(--accent); }
-body.movil-mode .sidebar .sfooter { margin-left: auto; }
-body.movil-mode .sidebar .sfooter .upill { padding: 4px 8px; }
 body.movil-mode #cat-nav { display: none; }
+body.movil-mode .sidebar .ni {
+  padding: 5px 10px; border-radius: 14px; font-size: 11px;
+  display: flex; align-items: center; gap: 4px;
+  background: var(--surface2); border: 1px solid var(--border);
+  white-space: nowrap;
+}
+body.movil-mode .sidebar .ni .nbadge {
+  font-size: 9px; padding: 1px 4px;
+}
+body.movil-mode .sidebar .ni.active {
+  background: rgba(245,166,35,.15);
+  border-color: var(--accent); color: var(--accent);
+}
 body.movil-mode .sidebar .icon { display: none; }
-body.movil-mode .main { height: calc(100vh - 90px); overflow: hidden; }
-/* Kanban en móvil: columna única, scroll horizontal */
-body.movil-mode .kanban {
-  grid-template-columns: repeat(4, 85vw) !important;
-  overflow-x: auto !important; overflow-y: hidden;
-  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
-  padding-bottom: 8px; gap: 8px;
-}
-body.movil-mode .kcol { scroll-snap-align: start; min-height: 60vh; }
-/* Calendario en móvil */
-body.movil-mode .ot-cal-week-grid {
-  grid-template-columns: repeat(7, 80vw) !important;
-  overflow-x: auto !important; scroll-snap-type: x mandatory;
+
+/* Main — scroll vertical normal */
+body.movil-mode .main {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  min-height: 0;
 }
-body.movil-mode .ot-week-col { scroll-snap-align: start; }
-body.movil-mode .ot-cal-month-grid { grid-template-columns: repeat(7,1fr) !important; }
-body.movil-mode .ot-cal-day { min-height: 52px; }
-/* Cards en móvil */
-body.movil-mode .card { margin-bottom: 6px; }
-/* Topbar en móvil */
-body.movil-mode .topbar { padding: 8px 12px; flex-wrap: wrap; gap: 6px; }
-body.movil-mode .tbactions { flex-wrap: wrap; gap: 4px; }
-body.movil-mode #global-search { width: 140px !important; }
-/* Estadísticas en móvil */
+
+/* Topbar en móvil — ocultar elementos no esenciales */
+body.movil-mode .topbar {
+  padding: 6px 10px; flex-wrap: nowrap; gap: 6px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+  flex-shrink: 0;
+}
+body.movil-mode .tbactions {
+  display: flex; flex-wrap: nowrap; gap: 4px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+body.movil-mode #global-search { width: 120px !important; }
+body.movil-mode #btn-movil { font-size: 10px; padding: 4px 8px; }
+
+/* Kanban → scroll horizontal, cada columna = pantalla */
+body.movil-mode #main-content { padding: 0 !important; }
+body.movil-mode .kanban-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+body.movil-mode .kanban {
+  display: flex !important;
+  flex-direction: row !important;
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  gap: 0; padding: 10px 8px;
+  align-items: flex-start;
+  width: max-content;
+}
+body.movil-mode .kcol {
+  scroll-snap-align: start;
+  min-width: 88vw !important; max-width: 88vw;
+  margin-right: 8px;
+  height: auto !important; min-height: unset;
+}
+
+/* Calendario semana → scroll horizontal por día */
+body.movil-mode .ot-cal-week-grid {
+  display: flex !important;
+  overflow-x: auto !important; overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  gap: 6px; padding-bottom: 4px;
+}
+body.movil-mode .ot-week-col {
+  scroll-snap-align: start;
+  min-width: 85vw !important; max-width: 85vw;
+  flex-shrink: 0;
+}
+
+/* Calendario mes → grid compacto */
+body.movil-mode .ot-cal-month-grid {
+  grid-template-columns: repeat(7, 1fr) !important;
+}
+body.movil-mode .ot-cal-day { min-height: 48px; font-size: 10px; }
+body.movil-mode .ot-day-chip { font-size: 8px; }
+
+/* Stats en móvil */
 body.movil-mode .ot-cal-stats { grid-template-columns: repeat(3,1fr); gap: 5px; }
 body.movil-mode .ot-stat-v { font-size: 16px; }
-/* Planner user tabs en móvil */
-body.movil-mode .ot-planner-user-tabs { overflow-x: auto; flex-wrap: nowrap; }
+body.movil-mode .ot-stat { padding: 7px 10px; }
+
+/* User tabs planificador */
+body.movil-mode .ot-planner-user-tabs {
+  overflow-x: auto; flex-wrap: nowrap;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+/* Ocultar sub-vtabs en kanban móvil (ya hay Kanban/Lista en nav) */
+body.movil-mode #sub-vtabs { display: none; }
+
+/* Botones de acción — reducir tamaño */
+body.movil-mode .btn-primary { font-size: 12px; padding: 6px 12px; }
+body.movil-mode #btn-add-user { display: none !important; }
+
+/* Main layout en móvil — flex column con scroll vertical en content */
+body.movil-mode .main {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden; min-height: 0;
+}
+body.movil-mode .topbar {
+  height: auto !important; flex-shrink: 0;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+body.movil-mode .content {
+  flex: 1; overflow-y: auto !important; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 10px 8px !important;
+  min-height: 0;
+}
+/* Kanban dentro de content necesita overflow horizontal */
+body.movil-mode .content:has(.kanban) {
+  overflow-x: auto !important;
+  padding: 10px 0 !important;
+}
 
 /* QUICK DONE BUTTON */
 .qdone-btn{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;border:1.5px solid;transition:.15s;white-space:nowrap;}

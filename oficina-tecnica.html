@@ -459,11 +459,27 @@ body.movil-mode .ot-week-col {
 }
 
 /* Calendario mes → grid compacto */
+/* Vista mes en móvil: scroll horizontal con columnas de tamaño fijo */
 body.movil-mode .ot-cal-month-grid {
-  grid-template-columns: repeat(7, 1fr) !important;
+  grid-template-columns: repeat(7, 52px) !important;
+  overflow-x: auto !important;
+  width: max-content;
 }
-body.movil-mode .ot-cal-day { min-height: 48px; font-size: 10px; }
-body.movil-mode .ot-day-chip { font-size: 8px; }
+/* Envolver el mes en un contenedor scrollable */
+body.movil-mode .ot-cal-mes-wrap {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+body.movil-mode .ot-cal-day {
+  min-height: 60px !important;
+  font-size: 10px;
+  min-width: 52px;
+  padding: 3px;
+}
+body.movil-mode .ot-day-num { font-size: 10px; width: 16px; height: 16px; }
+body.movil-mode .ot-day-chip { font-size: 8px; padding: 1px 3px; }
+body.movil-mode .ot-cal-dow { font-size: 9px; }
 
 /* Stats en móvil */
 body.movil-mode .ot-cal-stats { grid-template-columns: repeat(3,1fr); gap: 5px; }
@@ -1840,7 +1856,7 @@ function renderOtCalMes(todayStr, tareasConFecha) {
   const resto = totalCeldas%7===0 ? 0 : 7-(totalCeldas%7);
   for(let i=0;i<resto;i++) celdasHtml += '<div class="ot-cal-day otro-mes"></div>';
 
-  return '<div class="ot-cal-month-grid">' + cabHtml + celdasHtml + '</div>';
+  return '<div class="ot-cal-mes-wrap"><div class="ot-cal-month-grid">' + cabHtml + celdasHtml + '</div></div>';
 }
 // ── Vista Semana ──
 function renderOtCalSemana(todayStr, tareasConFecha) {

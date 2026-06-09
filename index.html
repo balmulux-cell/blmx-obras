@@ -1710,7 +1710,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.3.24'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.25'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -4178,30 +4178,83 @@ function renderTrabajadores(){
 let pptoPdfDoc=null;let pptoCurrentPage=1;
 if(typeof pdfjsLib!=='undefined')pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-function loadPptoPdf(input){
-  const file=input.files[0];if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{localStorage.setItem('ppto_'+DB.activeId,e.target.result);localStorage.setItem('ppto_name_'+DB.activeId,file.name);}
-    catch(err){alert('PDF demasiado grande. Prueba con uno comprimido.');return;}
+async function loadPptoPdf(input){
+  const file = input.files[0]; if(!file) return;
+  const p = activeProject(); if(!p) return;
+  const btn = document.querySelector('#inner-ppto .btn-primary');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Subiendo...'; }
+  try {
+    const obraSafe = sanitizeR2Name(p.name);
+    const key = 'PRESUPUESTOS/' + obraSafe + '/' + file.name;
+    // Subir a R2
+    const r = await fetch(DRIVE_WORKER, {
+      method: 'POST',
+      headers: { 'X-Action': 'upload-file', 'X-Key': key, 'Content-Type': 'application/pdf' },
+      body: file
+    });
+    if(!r.ok) throw new Error('Error subiendo: ' + r.status);
+    // Guardar referencia en Firebase (no el PDF entero)
+    p.ppto = { key, name: file.name, uploaded: new Date().toISOString() };
+    await saveDB();
+    // Limpiar localStorage antiguo si existe
+    localStorage.removeItem('ppto_' + DB.activeId);
+    localStorage.removeItem('ppto_name_' + DB.activeId);
     renderPpto();
-  };
-  reader.readAsDataURL(file);input.value='';
+    showToast('✅ Presupuesto subido', 'ok');
+  } catch(e) {
+    console.error('Error subiendo presupuesto:', e);
+    showToast('Error al subir el presupuesto', 'err');
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='📂 Seleccionar PDF'; }
+    input.value='';
+  }
 }
-function renderPpto(){
-  const base64=localStorage.getItem('ppto_'+DB.activeId);
-  const name=localStorage.getItem('ppto_name_'+DB.activeId);
-  const empty=document.getElementById('pptoEmpty');
-  const loaded=document.getElementById('pptoLoaded');
-  if(!empty||!loaded)return;
-  if(!base64){empty.style.display='block';loaded.style.display='none';pptoPdfDoc=null;return;}
-  empty.style.display='none';loaded.style.display='block';
-  document.getElementById('pptoNameText').textContent=name||'presupuesto.pdf';
-  pptoCurrentPage=1;
-  const data=atob(base64.split(',')[1]);
-  const arr=new Uint8Array(data.length);
-  for(let i=0;i<data.length;i++)arr[i]=data.charCodeAt(i);
-  pdfjsLib.getDocument({data:arr}).promise.then(pdf=>{pptoPdfDoc=pdf;pptoRenderPage(1);}).catch(()=>{});
+async function renderPpto(){
+  const empty  = document.getElementById('pptoEmpty');
+  const loaded = document.getElementById('pptoLoaded');
+  if(!empty||!loaded) return;
+  const p = activeProject();
+
+  // Buscar referencia: primero en p.ppto (R2), luego en localStorage (legado)
+  const pptoRef  = p?.ppto;
+  const legacyB64 = localStorage.getItem('ppto_' + DB.activeId);
+  const legacyName = localStorage.getItem('ppto_name_' + DB.activeId);
+
+  if(!pptoRef && !legacyB64){
+    empty.style.display='block'; loaded.style.display='none'; pptoPdfDoc=null; return;
+  }
+  empty.style.display='none'; loaded.style.display='block';
+
+  if(pptoRef) {
+    document.getElementById('pptoNameText').textContent = pptoRef.name || 'presupuesto.pdf';
+    // Descargar desde R2 si no está ya cargado
+    try {
+      const r = await fetch(DRIVE_WORKER, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Action': 'get-file' },
+        body: JSON.stringify({ key: pptoRef.key })
+      });
+      if(!r.ok) throw new Error('Error descargando PDF');
+      const buf = await r.arrayBuffer();
+      pptoCurrentPage = 1;
+      pdfjsLib.getDocument({data: new Uint8Array(buf)}).promise
+        .then(pdf => { pptoPdfDoc=pdf; pptoRenderPage(1); })
+        .catch(() => { showToast('Error al mostrar el PDF', 'err'); });
+    } catch(e) {
+      console.warn('Error cargando presupuesto desde R2:', e);
+      showToast('Error al cargar el presupuesto', 'err');
+    }
+  } else if(legacyB64) {
+    // Fallback para PDFs guardados con la versión antigua (localStorage)
+    document.getElementById('pptoNameText').textContent = legacyName || 'presupuesto.pdf';
+    pptoCurrentPage = 1;
+    const data = atob(legacyB64.split(',')[1]);
+    const arr = new Uint8Array(data.length);
+    for(let i=0;i<data.length;i++) arr[i] = data.charCodeAt(i);
+    pdfjsLib.getDocument({data:arr}).promise
+      .then(pdf => { pptoPdfDoc=pdf; pptoRenderPage(1); })
+      .catch(() => {});
+  }
 }
 function pptoRenderPage(pageNum){
   if(!pptoPdfDoc)return;
@@ -4216,10 +4269,26 @@ function pptoRenderPage(pageNum){
 }
 function pptoPrevPage(){if(!pptoPdfDoc||pptoCurrentPage<=1)return;pptoCurrentPage--;pptoRenderPage(pptoCurrentPage);}
 function pptoNextPage(){if(!pptoPdfDoc||pptoCurrentPage>=pptoPdfDoc.numPages)return;pptoCurrentPage++;pptoRenderPage(pptoCurrentPage);}
-function deletePpto(){
-  showConfirmModal('¿Eliminar el PDF del presupuesto?', ()=>{
-  localStorage.removeItem('ppto_'+DB.activeId);    localStorage.removeItem('ppto_name_'+DB.activeId);
-  pptoPdfDoc=null;renderPpto();
+async function deletePpto(){
+  showConfirmModal('¿Eliminar el PDF del presupuesto?', async () => {
+    const p = activeProject();
+    // Borrar de R2 si existe
+    if (p?.ppto?.key) {
+      try {
+        await fetch(DRIVE_WORKER, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Action': 'delete-file' },
+          body: JSON.stringify({ key: p.ppto.key })
+        });
+      } catch(e) { console.warn('Error borrando presupuesto de R2:', e); }
+      delete p.ppto;
+      await saveDB();
+    }
+    // Borrar localStorage legado
+    localStorage.removeItem('ppto_' + DB.activeId);
+    localStorage.removeItem('ppto_name_' + DB.activeId);
+    pptoPdfDoc = null;
+    renderPpto();
   });
 }
 

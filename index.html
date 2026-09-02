@@ -190,7 +190,8 @@ tr:hover td{background:#fafafa!important}
 
 /* ── JORNADA ── */
 .jornada-tipo-row{display:flex;gap:8px;margin-bottom:12px}
-.jornada-tipo-btn{flex:1;padding:14px;border-radius:10px;border:2px solid var(--border);background:var(--s2);color:var(--text2);font-family:'Inter',sans-serif;font-weight:700;font-size:14px;cursor:pointer;text-align:center;transition:all .2s}
+.jornada-tipo-row{display:flex;gap:8px;flex-wrap:wrap;}
+.jornada-tipo-btn{flex:1;min-width:calc(50% - 4px);padding:12px 8px;border-radius:10px;border:2px solid var(--border);background:var(--s2);color:var(--text2);font-family:'Inter',sans-serif;font-weight:700;font-size:14px;cursor:pointer;text-align:center;transition:all .2s}
 .jornada-tipo-btn.selected{border-color:var(--accent);background:#fffbf0;color:var(--accent)}
 .jornada-tipo-btn .horas{font-family:'Inter',sans-serif;font-size:12px;font-weight:400;color:var(--text3);display:block;margin-top:2px}
 .jornada-tipo-btn.selected .horas{color:var(--accent)}
@@ -596,11 +597,45 @@ tr:hover td{background:#fafafa!important}
           Media Jornada
           <span class="horas">4 horas</span>
         </button>
+        <button class="jornada-tipo-btn" id="jBtnManual" onclick="selectJornada('manual')">
+          Manual
+          <span class="horas">h. libres</span>
+        </button>
+        <button class="jornada-tipo-btn" id="jBtnSinHoras" onclick="selectJornada('sin_horas')">
+          Sin horas
+          <span class="horas">0 horas</span>
+        </button>
+      </div>
+      <!-- Input horas manuales — visible solo en modo manual -->
+      <div id="jManualRow" style="display:none;margin-top:8px">
+        <div class="fg">
+          <label>Horas trabajadas</label>
+          <input type="number" id="jHorasManual" min="0" max="24" step="0.5" value="6" placeholder="Ej: 6">
+        </div>
       </div>
 
-      <label class="chk-row">
-        <input type="checkbox" id="jViaje"> ✈️ Horas de viaje (se contabilizan separado)
-      </label>
+      <div style="margin-top:8px">
+        <div style="font-family:'Inter',sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:.2px;color:var(--text3);margin-bottom:6px">✈️ Horas de viaje</div>
+        <div class="jornada-tipo-row" style="gap:6px">
+          <button class="jornada-tipo-btn selected" id="jBtnViajeNo" onclick="selectViaje('no')" style="padding:10px 6px;font-size:12px">
+            Sin viaje
+            <span class="horas">0h</span>
+          </button>
+          <button class="jornada-tipo-btn" id="jBtnViajeCompleto" onclick="selectViaje('completo')" style="padding:10px 6px;font-size:12px">
+            Completo
+            <span class="horas">c/ jornada</span>
+          </button>
+          <button class="jornada-tipo-btn" id="jBtnViajeManual" onclick="selectViaje('manual')" style="padding:10px 6px;font-size:12px">
+            Manual
+            <span class="horas">h. libres</span>
+          </button>
+        </div>
+        <div id="jViajeManualRow" style="display:none;margin-top:6px">
+          <input type="number" id="jViajeHorasFijas" min="0" max="24" step="0.5" value="1"
+            placeholder="Ej: 1.5" style="width:100%;padding:9px 11px;border-radius:8px;border:1.5px solid var(--border);background:var(--s2);color:var(--text);font-size:13px;outline:none">
+        </div>
+        <input type="hidden" id="jViaje" value="no">
+      </div>
 
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         <div style="font-family:'Inter',sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:.2px;color:var(--text3);margin-bottom:8px">Personal subcontrata en obra (opcional)</div>
@@ -1710,7 +1745,7 @@ const DB_REF = fbDB.ref('obra_db');
 // ════════════════════════════════════════════
 // STATE
 const KEY = 'obra_db_local';
-const APP_VERSION = '1.3.25'; // Actualiza este número con cada nueva versión
+const APP_VERSION = '1.3.26'; // Actualiza este número con cada nueva versión
 const ADMIN_PASS_KEY = 'obra_admin_pass';
 const ADMIN_SESSION_KEY = 'obra_admin_session';
 const DEFAULT_PASS = 'blmx2024';
@@ -2506,7 +2541,7 @@ async function generarPDFDossier(p) {
       .sort((a,b) => (a.fecha||'').localeCompare(b.fecha||''))
       .map(j => [
         j.fecha||'', j.trabajador||'',
-        j.tipo==='completa'?'Completa':j.tipo==='media'?'Media':'—',
+        j.tipo==='completa'?'Completa':j.tipo==='media'?'Media':j.tipo==='sin_horas'?'Sin horas':'Manual',
         (j.horas||0)+'h',
         j.viaje?'Sí':'—',
         j.subPersonas>0 ? j.subPersonas+' pers.' : '—',
@@ -2712,7 +2747,8 @@ async function generarDossier() {
     if (jornadasObra.length > 0) {
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
         jornadasObra.map(j => ({
-          Trabajador: j.trabajador||'', Fecha: j.fecha||'', 'Tipo jornada': j.tipo||'',
+          Trabajador: j.trabajador||'', Fecha: j.fecha||'', 'Tipo jornada': j.tipo==='completa'?'Completa':j.tipo==='media'?'Media':j.tipo==='sin_horas'?'Sin horas':'Manual',
+          'H. viaje manual': j.viajeHoras||0,
           Horas: j.horas||0, Viaje: j.viaje?'Sí':'No', 'Sub personas': j.subPersonas||0,
           'Horas subcontrata': j.horasSub||0, Notas: j.notas||''
         }))
@@ -3992,10 +4028,27 @@ function renderGlobalPedidos() {
 // JORNADAS
 // ════════════════════════════════════════════
 let jornadaTipo='completa';
+let viajeMode='no';
+function selectViaje(mode){
+  viajeMode=mode;
+  document.getElementById('jBtnViajeNo').classList.toggle('selected',mode==='no');
+  document.getElementById('jBtnViajeCompleto').classList.toggle('selected',mode==='completo');
+  document.getElementById('jBtnViajeManual').classList.toggle('selected',mode==='manual');
+  const manualRow = document.getElementById('jViajeManualRow');
+  if(manualRow) manualRow.style.display = mode==='manual' ? 'block' : 'none';
+  // Actualizar hidden input para compatibilidad
+  const hidden = document.getElementById('jViaje');
+  if(hidden) hidden.value = mode;
+}
 function selectJornada(tipo){
   jornadaTipo=tipo;
   document.getElementById('jBtnCompleta').classList.toggle('selected',tipo==='completa');
   document.getElementById('jBtnMedia').classList.toggle('selected',tipo==='media');
+  document.getElementById('jBtnManual').classList.toggle('selected',tipo==='manual');
+  document.getElementById('jBtnSinHoras').classList.toggle('selected',tipo==='sin_horas');
+  // Mostrar/ocultar inputs de horas manuales
+  const manualRow = document.getElementById('jManualRow');
+  if (manualRow) manualRow.style.display = tipo==='manual' ? 'flex' : 'none';
 }
 function populateJornadaDropdowns(){
   const selT=document.getElementById('jTrabajador');
@@ -4013,7 +4066,8 @@ async function saveJornada(){
   const fecha=document.getElementById('jFecha').value;
   const trabId=document.getElementById('jTrabajador').value;
   const obraId=document.getElementById('jObra').value;
-  const viaje=document.getElementById('jViaje').checked;
+  const viajeHidden = document.getElementById('jViaje')?.value || viajeMode;
+  const viaje = viajeHidden !== 'no';
   const subPersonas=parseInt(document.getElementById('jSubPersonas').value)||0;
   const subHoras=parseFloat(document.getElementById('jSubHoras')?.value||8)||8;
   const subViaje=document.getElementById('jSubViaje').checked;
@@ -4025,13 +4079,26 @@ async function saveJornada(){
   localStorage.setItem('jornada_lastObra',obraId);
   const trabajador=(DB.trabajadores||[]).find(t=>t.id===trabId);
   const obra=(DB.projects||{})[obraId];
-  const horas=jornadaTipo==='completa'?8:4;
+  let horas;
+  if (jornadaTipo==='completa')       horas = 8;
+  else if (jornadaTipo==='media')     horas = 4;
+  else if (jornadaTipo==='sin_horas') horas = 0;
+  else { // manual
+    horas = parseFloat(document.getElementById('jHorasManual')?.value||0)||0;
+  }
+  // Horas de viaje: en modo manual usar el campo manual, si no el checkbox
+  let viajeHoras = 0;
+  if (viajeMode==='completo') {
+    viajeHoras = horas; // mismas horas que la jornada
+  } else if (viajeMode==='manual') {
+    viajeHoras = parseFloat(document.getElementById('jViajeHorasFijas')?.value||0)||0;
+  }
   if(!DB.jornadas)DB.jornadas=[];
   DB.jornadas.push({
     id:Date.now(),fecha,
     trabId,trabNombre:trabajador?.nombre||'—',
     obraId,obraNombre:obra?.name||'—',
-    tipo:jornadaTipo,horas,viaje,
+    tipo:jornadaTipo,horas,viaje,viajeHoras:jornadaTipo==='manual'?viajeHoras:0,
     subPersonas,subHoras,subViaje,
     horasSub:subPersonas>0?subHoras*subPersonas:0,
     notas,registradoEn:new Date().toISOString()
@@ -4040,7 +4107,9 @@ async function saveJornada(){
   document.getElementById('jNotas').value='';
   document.getElementById('jSubPersonas').value='0';
   const jSubHorasEl = document.getElementById('jSubHoras'); if(jSubHorasEl) jSubHorasEl.value='8';
-  document.getElementById('jViaje').checked=false;
+  const jHorasManualEl = document.getElementById('jHorasManual'); if(jHorasManualEl) jHorasManualEl.value='6';
+
+  selectViaje('no');
   document.getElementById('jSubViaje').checked=false;
   selectJornada('completa');
   renderJornadaHist();
@@ -4096,7 +4165,7 @@ function renderJornadaHist(){
     <div class="card-meta">
       <span class="tag-sm">📅 ${j.fecha}</span>
       <span style="font-family:'Inter',sans-serif;font-weight:700;font-size:11px;color:var(--accent)">${j.trabNombre}</span>
-      <span class="badge b-blue">${j.horas}h · ${j.tipo==='completa'?'Completa':'Media'}</span>
+      <span class="badge b-blue">${j.horas}h · ${j.tipo==='completa'?'Completa':j.tipo==='media'?'Media':j.tipo==='sin_horas'?'Sin horas':'Manual'}</span>
       ${j.viaje?'<span class="badge b-w">✈️ Viaje</span>':''}
       <button class="btn btn-danger btn-xs" style="margin-left:auto" onclick="deleteJornada(${j.id})">✕</button>
     </div>
@@ -4118,8 +4187,8 @@ function exportJornadas(){
   // Sheet 1: detalle
   const detalle=jornadas.map(j=>({
     'Fecha':j.fecha,'Trabajador':j.trabNombre,'Obra':j.obraNombre,
-    'Tipo':j.tipo==='completa'?'Completa':'Media','Horas propias':j.horas,
-    'Horas viaje':j.viaje?j.horas:0,
+    'Tipo':j.tipo==='completa'?'Completa':j.tipo==='media'?'Media':j.tipo==='sin_horas'?'Sin horas':'Manual','Horas propias':j.horas,
+    'Horas viaje':j.viajeHoras||(j.viaje?j.horas:0),
     'Subcontrata personas':j.subPersonas,'Horas subcontrata':j.horasSub,
     'Horas viaje subcontrata':j.subViaje?j.horasSub:0,'Notas':j.notas||''
   }));
@@ -6130,9 +6199,13 @@ async function ejecutarBorradoMasivo() {
   let countJ = 0, countG = 0;
 
   if (que === 'jornadas' || que === 'todo') {
-    const antes = (DB.jornadas||[]).length;
+    const jornadasABorrar = (DB.jornadas||[]).filter(j => filtroFecha(j.fecha) && filtroTrab(j.trabNombre));
+    // Borrar cada nodo en Firebase directamente
+    for (const j of jornadasABorrar) {
+      try { await DB_REF.child('jornadas/' + j.id).remove(); } catch(e) {}
+    }
+    countJ = jornadasABorrar.length;
     DB.jornadas = (DB.jornadas||[]).filter(j => !(filtroFecha(j.fecha) && filtroTrab(j.trabNombre)));
-    countJ = antes - DB.jornadas.length;
   }
 
   if (que === 'gastos' || que === 'todo') {
@@ -6189,8 +6262,15 @@ function deleteJornada(id) {
   showConfirmModal(
     `¿Eliminar la jornada del ${j.fecha} de ${j.trabNombre} en ${j.obraNombre}?`,
     async () => {
+      // 1. Borrar el nodo en Firebase directamente (filter+saveDB no borra nodos)
+      try {
+        await DB_REF.child('jornadas/' + id).remove();
+      } catch(e) { console.warn('Error borrando jornada en Firebase:', e); }
+      // 2. Actualizar array local
       DB.jornadas = (DB.jornadas||[]).filter(x=>x.id!==id);
-      await saveDB(); renderJornadaHist();
+      // 3. Actualizar localStorage
+      try { localStorage.setItem(KEY, JSON.stringify(DB)); } catch(e) {}
+      renderJornadaHist();
     }
   );
 }
